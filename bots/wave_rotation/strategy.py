@@ -72,6 +72,7 @@ class StrategyConfig:
     telegram: Dict[str, object]
     adapters: Dict[str, object]
     selection: Dict[str, object]
+    autopause: Dict[str, object]
 
     @staticmethod
     def load(path: Path) -> "StrategyConfig":
@@ -91,6 +92,7 @@ class StrategyConfig:
             telegram=raw.get("telegram", {}),
             adapters=raw.get("adapters", {}),
             selection=raw.get("selection", {}),
+            autopause=raw.get("autopause", {}),
         )
 
 
@@ -420,13 +422,13 @@ def main() -> None:
         send_telegram(msg, config)
         return
 
-    notes_bits = [
+    metadata_bits = [
         f"scope={config_dict['search_scope']}",
         f"source={source_name}",
         f"scan={stats.get('count', '?')}",
     ]
-    notes_bits.append(f"best={selected.get('pool_id')}")
-    notes_bits.append(f"score_best={selected.get('score', 0.0):.6f}")
+    metadata_bits.append(f"best={selected.get('pool_id')}")
+    metadata_bits.append(f"score_best={selected.get('score', 0.0):.6f}")
 
     reserve_eth = float(os.getenv("GAS_RESERVE_ETH", "0.004"))
     available_onchain = get_available_capital_eth(reserve_eth)
@@ -458,6 +460,7 @@ def main() -> None:
     rotated = previous_pool_id != next_pool_id
 
     previous_candidate = candidate_map.get(previous_pool_id) if previous_pool_id else None
+    previous_score = float((previous_candidate or {}).get("score", state.score or 0.0))
     previous_address = (previous_candidate or {}).get("address")
     next_address = selected.get("address")
 
@@ -502,12 +505,12 @@ def main() -> None:
             pass
 
     working_pool = active_pool or selected
-    notes_bits.append(f"active={working_pool.get('pool_id')}")
-    notes_bits.append(f"score_active={working_pool.get('score', 0.0):.6f}")
+    metadata_bits.append(f"active={working_pool.get('pool_id')}")
+    metadata_bits.append(f"score_active={working_pool.get('score', 0.0):.6f}")
 
     r_net_daily = working_pool["r_net"]
     r_net_interval = (1.0 + r_net_daily) ** interval_factor - 1.0
-    status = "executed"
+    status_head = "executed"
     status_notes: List[str] = []
     extra_notifications: List[str] = []
     if gas_status_note:
@@ -520,7 +523,14 @@ def main() -> None:
     if active_pool_id and active_pool_id != next_pool_id:
         status_notes.append(f"target:{next_pool_id or '-'}")
 
-    status_notes.extend(notes_bits)
+    autopause_cfg = config.autopause or {}
+    autopause_streak = int(float(autopause_cfg.get("streak", 3) or 0))
+    autopause_streak = max(0, autopause_streak)
+    resume_wait_minutes = float(autopause_cfg.get("resume_wait_minutes", 360) or 0)
+    resume_wait_minutes = max(0.0, resume_wait_minutes)
+    resume_cooldown_minutes = float(autopause_cfg.get("resume_cooldown_minutes", 5) or 0)
+    resume_cooldown_minutes = max(0.0, resume_cooldown_minutes)
+    fast_signal_min = float(autopause_cfg.get("fast_signal_min", 0.0) or 0.0)
 
     stop_loss_interval = config.stop_loss_daily * interval_factor
     crisis_flag = r_net_interval < stop_loss_interval
@@ -532,7 +542,12 @@ def main() -> None:
         state.crisis_streak = 0
 
     autopause_triggered = False
-    if crisis_flag and state.crisis_streak >= 3 and not state.paused:
+    if (
+        autopause_streak > 0
+        and crisis_flag
+        and state.crisis_streak >= autopause_streak
+        and not state.paused
+    ):
         state.paused = True
         state.last_resume_attempt = None
         autopause_triggered = True
@@ -542,16 +557,67 @@ def main() -> None:
     if pool_tx:
         status_notes.append(f"pool:{pool_tx}")
 
+    resume_threshold = timedelta(minutes=resume_wait_minutes) if resume_wait_minutes > 0 else timedelta(0)
+    cooldown_resume = (
+        timedelta(minutes=resume_cooldown_minutes)
+        if resume_cooldown_minutes > 0
+        else timedelta(0)
+    )
+
+    if state.paused and not crisis_flag and not autopause_triggered:
+        now_dt = datetime.utcnow()
+        last_crisis_dt = parse_dt(state.last_crisis_at)
+        last_resume_dt = parse_dt(state.last_resume_attempt)
+        cooldown_ok = (
+            last_resume_dt is None
+            or cooldown_resume == timedelta(0)
+            or now_dt - last_resume_dt >= cooldown_resume
+        )
+        fast_signal = r_net_interval >= fast_signal_min
+        ready_by_time = (
+            resume_threshold == timedelta(0)
+            or (
+                last_crisis_dt is not None
+                and now_dt - last_crisis_dt >= resume_threshold
+            )
+        )
+
+        if cooldown_ok and (fast_signal or ready_by_time):
+            resume_tx = resume_vault()
+            state.last_resume_attempt = timestamp_now()
+            if resume_tx:
+                state.paused = False
+                state.crisis_streak = 0
+                status_notes.append(f"resume:{resume_tx}")
+                extra_notifications.append(
+                    "✅ Ripresa automatica – vault resume eseguito.\n"
+                    f"🔄 tx: {resume_tx}"
+                )
+            else:
+                extra_notifications.append(
+                    "⚠️ Tentativo di resume automatico fallito – controlla manualmente."
+                )
+        elif fast_signal and not cooldown_ok:
+            status_notes.append("resume:cooldown")
+
     capital_after: float
     treasury_delta: float
 
     if crisis_flag:
-        status = "stopped"
+        status_head = "stopped"
         capital_after = capital_before
         treasury_delta = 0.0
         print(
             "[stop-loss] r_net_interval="
             f"{r_net_interval:.4%} (threshold {stop_loss_interval:.4%}), capitale invariato."
+        )
+    elif state.paused:
+        status_head = "paused-eval"
+        capital_after = capital_before
+        treasury_delta = 0.0
+        status_notes.append("paused:evaluation")
+        print(
+            "[paused] stop-loss attivo: sola valutazione, capitale invariato."
         )
     else:
         profit, capital_after, treasury_delta_planned = settle_day(
@@ -589,38 +655,15 @@ def main() -> None:
 
         tx_hash = push_onchain(working_pool, capital_after)
         if tx_hash:
-            status = f"onchain:{tx_hash}"
+            status_notes.append(f"onchain:{tx_hash}")
             print(f"[onchain] executeStrategy → {tx_hash}")
 
     if autopause_triggered:
         extra_notifications.append(
             "🚨 Crisi prolungata – vault in pausa automatica.\n"
-            f"💰 Capitale salvato su stable: {capital_after:.2f}€\n"
-            "💤 Attendere segnali positivi per resume."
+            f"💰 Capitale preservato: {capital_after:.6f} (unità base)\n"
+            "💤 Il bot continua la valutazione ogni finestra."
         )
-    else:
-        resume_threshold = timedelta(hours=6)
-        cooldown_resume = timedelta(hours=1)
-        if state.paused and not crisis_flag:
-            last_crisis_dt = parse_dt(state.last_crisis_at)
-            now_dt = datetime.utcnow()
-            if last_crisis_dt and now_dt - last_crisis_dt >= resume_threshold:
-                last_resume_dt = parse_dt(state.last_resume_attempt)
-                if last_resume_dt is None or now_dt - last_resume_dt >= cooldown_resume:
-                    resume_tx = resume_vault()
-                    state.last_resume_attempt = timestamp_now()
-                    if resume_tx:
-                        state.paused = False
-                        state.crisis_streak = 0
-                        status_notes.append(f"resume:{resume_tx}")
-                        extra_notifications.append(
-                            "✅ Ripresa automatica – vault resume eseguito.\n"
-                            f"🔄 tx: {resume_tx}"
-                        )
-                    else:
-                        extra_notifications.append(
-                            "⚠️ Tentativo di resume automatico fallito – controlla manualmente."
-                        )
 
     state.pool_id = active_pool_id or working_pool.get("pool_id")
     state.pool_name = working_pool["name"]
@@ -629,8 +672,11 @@ def main() -> None:
     state.updated_at = timestamp_now()
     state.save(STATE_FILE)
 
-    if status_notes:
-        status = f"{status}|{'|'.join(status_notes)}" if status else "|".join(status_notes)
+    status_tags = status_notes + metadata_bits
+    status_combined = status_head
+    if status_tags:
+        suffix = "|".join(status_tags)
+        status_combined = f"{status_head}|{suffix}" if status_head else suffix
 
     realized_return = 0.0
     if capital_before > 0:
@@ -654,7 +700,7 @@ def main() -> None:
         "capital_before": f"{capital_before:.6f}",
         "capital_after": f"{capital_after:.6f}",
         "treasury_delta": f"{treasury_delta:.6f}",
-        "status": status,
+        "status": status_combined,
     }
     append_log(row, str(LOG_FILE))
 
@@ -672,7 +718,15 @@ def main() -> None:
         "roi_daily": roi_daily_pct,
         "pnl_daily": pnl_daily,
         "score": working_pool["score"],
-        "status": status,
+        "status": status_combined,
+        "status_head": status_head,
+        "status_tags": status_notes,
+        "metadata": metadata_bits,
+        "pool_changed": rotated_effective,
+        "pool_requested_change": rotated,
+        "portfolio_status": portfolio_status,
+        "score_delta": working_pool["score"] - previous_score,
+        "score_previous": previous_score,
         "schedule": config.schedule_utc,
         "interval_desc": interval_desc,
     }
