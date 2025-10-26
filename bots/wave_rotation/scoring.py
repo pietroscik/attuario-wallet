@@ -93,7 +93,7 @@ def should_switch(
     best: dict | None,
     current: dict | None,
     *,
-    min_delta: float = 0.0005,
+    min_delta: float = 0.01,
     cooldown_s: int = 0,
     last_switch_ts: float | None = None,
 ) -> bool:
@@ -101,8 +101,12 @@ def should_switch(
         return False
     if current is None:
         return True
-    delta = float(best.get("score", 0.0)) - float(current.get("score", 0.0))
-    if delta < float(min_delta or 0.0):
+    score_best = float(best.get("score", 0.0))
+    score_current = float(current.get("score", 0.0))
+    if score_current <= 0:
+        return score_best > 0
+    # CODEX_RULES: switch if score_new >= score_current * (1 + delta)
+    if score_best < score_current * (1.0 + min_delta):
         return False
     if cooldown_s and last_switch_ts:
         if (time.time() - float(last_switch_ts)) < float(cooldown_s):

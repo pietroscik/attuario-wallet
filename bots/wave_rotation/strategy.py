@@ -248,34 +248,6 @@ def select_best_pool(
         pool_id = str(pool.get("pool_id") or "").lower()
         return symbol.startswith("VIRTUAL") or "VIRTUAL" in name or "virtual" in pool_id
 
-    exclude_virtual = os.getenv("EXCLUDE_VIRTUAL", "0").strip().lower() in {"1", "true", "yes"}
-    require_adapter = os.getenv("REQUIRE_ADAPTER_BEFORE_RANK", "0").strip().lower() in {"1", "true", "yes"}
-
-    ttl_raw = os.getenv("ADAPTER_CACHE_TTL_H", "168")
-    try:
-        ttl_hours = float(ttl_raw)
-    except ValueError:
-        ttl_hours = 168.0
-
-    def has_adapter(pool: Dict[str, object]) -> bool:
-        if not require_adapter:
-            return True
-        pool_id = pool.get("pool_id", "")
-        if adapters_cfg.get(pool_id) or adapters_cfg.get(f"pool:{pool_id}"):
-            return True
-        if not w3:
-            return False
-        address = (pool.get("address") or "").strip()
-        if not address or not address.startswith("0x"):
-            return False
-        cache_key = f"{pool_id}:{address.lower()}"
-        cached = get_cached(cache_key, ttl_hours)
-        if cached:
-            return cached.get("type", "none") != "none"
-        ok, adapter_type, _ = probe_type(w3, address)
-        set_cached(cache_key, adapter_type if ok else None, reason="probe")
-        return ok
-
     candidates: List[Dict[str, object]] = []
     for pool in pools:
         project = str(pool.get("project") or "").lower()

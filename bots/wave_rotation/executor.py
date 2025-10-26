@@ -23,6 +23,7 @@ from ops_guard import gas_ceiling_ok, should_move
 def should_switch(score_new: float, score_old: float, delta: float) -> bool:
     if score_old <= 0:
         return score_new > 0
+    # CODEX_RULES: switch if score_new >= score_old * (1 + delta)
     return score_new >= score_old * (1.0 + delta)
 
 
