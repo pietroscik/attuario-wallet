@@ -249,39 +249,59 @@ def select_best_pool(
         return symbol.startswith("VIRTUAL") or "VIRTUAL" in name or "virtual" in pool_id
 
     candidates: List[Dict[str, object]] = []
+    
+    # Apply selection filters from config
+    allowed_assets = selection_cfg.get("allowed_assets", [])
+    max_apy_staleness_min = float(selection_cfg.get("max_apy_staleness_min", 0) or 0)
+    min_pool_age_days = float(selection_cfg.get("min_pool_age_days", 0) or 0)
+    
     for pool in pools:
         project = str(pool.get("project") or "").lower()
         if project and project in blacklist_projects:
             continue
 
-        symbol = str(pool.get("symbol") or "").upper()
-        name = str(pool.get("name") or "").upper()
-        pool_id = str(pool.get("pool_id") or "").lower()
-        if exclude_virtual and (
-            symbol.startswith("VIRTUAL")
-            or "VIRTUAL" in name
-            or "virtual" in pool_id
-        ):
-            continue
-
-        if not has_adapter(pool):
-            continue
-
+        # Check virtual tokens
         if exclude_virtual and is_virtual(pool):
             continue
 
+        # Check adapter availability (single check)
         if require_adapter and not has_adapter(pool):
             continue
 
+        # Apply TVL filter
         if pool.get("tvl_usd", 0.0) < config.min_tvl_usd:
             continue
+        
+        # Apply allowed_assets filter if configured
+        if allowed_assets:
+            symbol = str(pool.get("symbol") or "").upper()
+            if not any(asset.upper() in symbol for asset in allowed_assets):
+                continue
+        
+        # Apply staleness filter if configured
+        if max_apy_staleness_min > 0:
+            staleness = float(pool.get("apy_age_min") or pool.get("apyAgeMin") or pool.get("updatedMin") or 0)
+            if staleness > max_apy_staleness_min:
+                continue
+        
+        # Apply minimum pool age filter if configured
+        if min_pool_age_days > 0:
+            pool_age = float(pool.get("poolAgeDays") or pool.get("pool_age_days") or 0)
+            if pool_age < min_pool_age_days:
+                continue
 
         apy = max(0.0, float(pool.get("apy") or 0.0))
         r_day = daily_rate(apy)
-        cost = max(0.0, float(pool.get("fee_pct") or 0.0))
+        
+        # CRITICAL FIX: Convert annual fee to daily fee before subtracting
+        # fee_pct is annual, need to scale to daily: annual_fee / 365
+        cost_annual = max(0.0, float(pool.get("fee_pct") or 0.0))
+        cost_daily = cost_annual / 365.0
+        
         risk = max(0.0, min(1.0, float(pool.get("risk_score", 0.0))))
-        s = r_day / (1.0 + cost * (1.0 - risk)) if r_day > 0 else r_day
-        r_net = r_day - cost
+        # Use daily cost in score calculation
+        s = r_day / (1.0 + cost_daily * (1.0 - risk)) if r_day > 0 else r_day
+        r_net = r_day - cost_daily
 
         candidate = dict(pool)
         candidate.update(
@@ -290,6 +310,8 @@ def select_best_pool(
                 "r_day": r_day,
                 "r_net": r_net,
                 "score": s,
+                "cost_daily": cost_daily,
+                "cost_annual": cost_annual,
             }
         )
         candidates.append(candidate)
@@ -308,6 +330,18 @@ def select_best_pool(
                 reasons.append("no_adapter")
             if pool.get("tvl_usd", 0.0) < config.min_tvl_usd:
                 reasons.append("tvl<min")
+            if allowed_assets:
+                symbol = str(pool.get("symbol") or "").upper()
+                if not any(asset.upper() in symbol for asset in allowed_assets):
+                    reasons.append("asset_not_allowed")
+            if max_apy_staleness_min > 0:
+                staleness = float(pool.get("apy_age_min") or pool.get("apyAgeMin") or pool.get("updatedMin") or 0)
+                if staleness > max_apy_staleness_min:
+                    reasons.append(f"stale>{max_apy_staleness_min}min")
+            if min_pool_age_days > 0:
+                pool_age = float(pool.get("poolAgeDays") or pool.get("pool_age_days") or 0)
+                if pool_age < min_pool_age_days:
+                    reasons.append(f"age<{min_pool_age_days}d")
             if not reasons:
                 reasons.append("other_filters")
             diagnostics.append(f"{pool.get('pool_id','?')}@{pool.get('chain','?')}:" + ",".join(reasons))
