@@ -13,6 +13,7 @@ from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from pathlib import Path
 from typing import Optional, Tuple
 
+import requests
 from eth_account import Account
 from web3 import HTTPProvider, Web3
 from web3.contract.contract import ContractFunction
@@ -55,6 +56,7 @@ _w3: Web3 | None = None
 def _make_w3(url: str) -> Web3:
     provider = HTTPProvider(url, request_kwargs={"timeout": RPC_TIMEOUT})
     w = Web3(provider)
+    # L2/OP-stack e chain PoA: il middleware non fa danni se non serve
     try:
         w.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     except ValueError:
@@ -77,10 +79,9 @@ def _connect(start_index: int = 0) -> None:
             if ALLOWED_CHAIN_IDS and chain_id not in ALLOWED_CHAIN_IDS:
                 raise RuntimeError(f"chainId {chain_id} not allowed")
             if REQUIRE_BASE and chain_id != BASE_CHAIN_ID:
-                raise RuntimeError(
-                    f"REQUIRE_BASE enforced but chainId={chain_id}"
-                )
+                raise RuntimeError(f"REQUIRE_BASE enforced but chainId={chain_id}")
             latest = candidate.eth.get_block("latest")
+            # type: ignore[call-arg]
             if (time.time() - latest["timestamp"]) > MAX_BLOCK_STALENESS_S:
                 raise RuntimeError("node stale (latest block too old)")
             _w3 = candidate
@@ -127,13 +128,108 @@ w3 = _w3  # type: ignore
 cid = w3.eth.chain_id  # type: ignore
 current_rpc_url = _current_rpc_url
 
+# === ABI source setup (artifact | etherscan_v2 | embedded) =================
+
+ABI_SRC = (os.getenv("VAULT_ABI_SOURCE") or "artifact").lower()
+CACHE_DIR = Path("cache")
+CACHE_DIR.mkdir(exist_ok=True)
+
+
+def _etherscan_v2_getabi(addr: str, chain_id: int, apikey: str, timeout=15):
+    """
+    Fetch ABI via Etherscan API V2 (multichain). Cache locale su disco.
+    Ritorna una lista (array ABI) pronta da passare a web3.
+    """
+    addr = addr.strip()
+    cache = CACHE_DIR / f"abi_{chain_id}_{addr.lower()}.json"
+    if cache.exists():
+        try:
+            data = json.loads(cache.read_text())
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+
+    url = "https://api.etherscan.io/v2/api"
+    params = {
+        "module": "contract",
+        "action": "getabi",
+        "address": addr,
+        "chainid": str(chain_id),
+        "apikey": apikey,
+    }
+    r = requests.get(url, params=params, timeout=timeout)
+    r.raise_for_status()
+    j = r.json()
+    # V2: {"status":"1","result":"[ ...abi json array... ]"}
+    if j.get("status") == "1" and j.get("result"):
+        abi = json.loads(j["result"])
+        cache.write_text(json.dumps(abi))
+        return abi
+    raise RuntimeError(f"EtherscanV2 getabi failed: {j}")
+
+
+def _load_vault_abi_from_artifact(abi_path: Path):
+    with abi_path.open(encoding="utf-8") as fh:
+        artifact = json.load(fh)
+    abi = artifact.get("abi")
+    if not abi:
+        raise RuntimeError("[onchain] ABI non valida (artifact senza campo abi)")
+    return abi
+
+
+def _resolve_vault_abi(vault_address: str) -> list:
+    """
+    Sceglie la sorgente ABI in base a VAULT_ABI_SOURCE con fallbacks:
+    etherscan_v2 -> artifact -> embedded
+    """
+    if ABI_SRC == "etherscan_v2":
+        apikey = os.getenv("ETHERSCAN_API_KEY")
+        if not apikey:
+            raise RuntimeError(
+                "ETHERSCAN_API_KEY mancante per VAULT_ABI_SOURCE=etherscan_v2"
+            )
+        try:
+            chain_id = w3.eth.chain_id  # type: ignore
+        except Exception:
+            chain_id = int(os.getenv("CHAIN_ID", str(BASE_CHAIN_ID)))
+        return _etherscan_v2_getabi(vault_address, chain_id, apikey)
+
+    # artifact
+    repo_root = Path(__file__).resolve().parents[2]
+    default_v2 = (
+        repo_root
+        / "contracts"
+        / "artifacts"
+        / "contracts"
+        / "AttuarioVaultV2_Adaptive.sol"
+        / "AttuarioVaultV2_Adaptive.json"
+    )
+    if default_v2.exists():
+        return _load_vault_abi_from_artifact(default_v2)
+    default_abi = (
+        repo_root
+        / "contracts"
+        / "artifacts"
+        / "contracts"
+        / "AttuarioVault.sol"
+        / "AttuarioVault.json"
+    )
+    if default_abi.exists():
+        return _load_vault_abi_from_artifact(default_abi)
+
+    # embedded minima
+    from abi_min import ATTAURIO_VAULT_ABI as ABI
+    return ABI
+
+
+# === Config & helpers ======================================================
 
 @dataclass
 class OnchainConfig:
     rpc_url: str
     private_key: str
     vault_address: str
-    abi_path: Path
     capital_scale: Decimal
 
 
@@ -151,28 +247,6 @@ def _load_config() -> Optional[OnchainConfig]:
     rpc_url = current_rpc_url or os.getenv("RPC_URL") or RPCS[0]
     private_key = os.getenv("PRIVATE_KEY")
     vault_address = os.getenv("VAULT_ADDRESS")
-
-    repo_root = Path(__file__).resolve().parents[2]
-    default_v2 = (
-        repo_root
-        / "contracts"
-        / "artifacts"
-        / "contracts"
-        / "AttuarioVaultV2_Adaptive.sol"
-        / "AttuarioVaultV2_Adaptive.json"
-    )
-    if default_v2.exists():
-        default_abi = default_v2
-    else:
-        default_abi = (
-            repo_root
-            / "contracts"
-            / "artifacts"
-            / "contracts"
-            / "AttuarioVault.sol"
-            / "AttuarioVault.json"
-        )
-    abi_path = Path(os.getenv("VAULT_ABI_PATH", str(default_abi)))
 
     scale_raw = os.getenv("CAPITAL_SCALE", "1000000")
     try:
@@ -193,15 +267,10 @@ def _load_config() -> Optional[OnchainConfig]:
         print(f"[onchain] Config mancante: {', '.join(missing)}")
         return None
 
-    if not abi_path.exists():
-        print(f"[onchain] ABI non trovata: {abi_path}")
-        return None
-
     return OnchainConfig(
         rpc_url=rpc_url,
-        private_key=private_key,
-        vault_address=vault_address,
-        abi_path=abi_path,
+        private_key=private_key,  # type: ignore
+        vault_address=vault_address,  # type: ignore
         capital_scale=capital_scale,
     )
 
@@ -245,13 +314,7 @@ def _prepare_contract():
         return None
     cfg, w3, account = ctx
 
-    with cfg.abi_path.open(encoding="utf-8") as fh:
-        artifact = json.load(fh)
-    abi = artifact.get("abi")
-    if not abi:
-        print("[onchain] ABI non valida")
-        return None
-
+    abi = _resolve_vault_abi(cfg.vault_address)
     checksum_address = Web3.to_checksum_address(cfg.vault_address)
     contract = w3.eth.contract(address=checksum_address, abi=abi)
     return cfg, w3, account, contract
@@ -261,7 +324,6 @@ def get_available_capital_eth(reserve_eth: float = 0.004) -> Optional[float]:
     cfg = _load_config()
     if cfg is None:
         return None
-
     if w3 is None:
         return None
 
@@ -308,6 +370,8 @@ def _send_contract_tx(w3: Web3, account, tx_fn: ContractFunction, label: str) ->
         print(f"[onchain] Invio {label} fallito: {err}")
         return None
 
+
+# === Vault methods =========================================================
 
 def execute_strategy(pool_name: str, apy_percent: float, capital_amount: float) -> Optional[str]:
     ctx = _prepare_contract()
