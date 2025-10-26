@@ -408,43 +408,11 @@ def select_best_pool(
                     continue
         return 0.0
 
-    def tokenize_assets(symbol: str) -> List[str]:
-        tokens = [symbol]
-        tokens.extend(re.split(r"[^A-Za-z0-9]+", symbol))
-        return [t for t in {tok.upper() for tok in tokens if tok}]
-
-    def allowed_asset_match(pool: Dict[str, object], allowed: List[str]) -> bool:
-        if not allowed:
-            return True
-
-        symbol = str(pool.get("symbol") or "")
-        symbol_upper = symbol.upper()
-        for asset in allowed:
-            asset_upper = str(asset).upper()
-            if asset_upper and asset_upper in symbol_upper:
-                return True
-
-        symbol_tokens = tokenize_assets(symbol)
-        underlying = pool.get("underlyingTokens") or pool.get("underlying_tokens") or []
-        for raw in underlying:
-            symbol_tokens.extend(tokenize_assets(str(raw)))
-
-        allowed_tokens = {str(asset).upper() for asset in allowed}
-        return any(token in allowed_tokens for token in symbol_tokens)
-
     candidates: List[Dict[str, object]] = []
     base_pool_set: List[Dict[str, object]] = []
     base_relaxed = False
 
     # Apply selection filters from config
-    allowed_assets_raw = selection_cfg.get("allowed_assets", [])
-    if isinstance(allowed_assets_raw, str):
-        allowed_assets = [allowed_assets_raw]
-    else:
-        allowed_assets = list(allowed_assets_raw)
-    max_apy_staleness_min = float(selection_cfg.get("max_apy_staleness_min", 0) or 0)
-    min_pool_age_days = float(selection_cfg.get("min_pool_age_days", 0) or 0)
-
     for pool in pools:
         project = str(pool.get("project") or "").lower()
         if project and project in blacklist_projects:
@@ -520,35 +488,6 @@ def select_best_pool(
         return False, "tvl<min"
 
     apply_filter("tvl", tvl_predicate)
-
-    if allowed_assets:
-
-        def asset_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
-            if allowed_asset_match(pool, allowed_assets):
-                return True, ""
-            return False, "asset_not_allowed"
-
-        apply_filter("allowed_assets", asset_predicate)
-
-    if max_apy_staleness_min > 0:
-
-        def staleness_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
-            value = pool_staleness(pool)
-            if value <= max_apy_staleness_min:
-                return True, ""
-            return False, f"stale>{max_apy_staleness_min}"
-
-        apply_filter("staleness", staleness_predicate)
-
-    if min_pool_age_days > 0:
-
-        def age_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
-            value = pool_age(pool)
-            if value >= min_pool_age_days:
-                return True, ""
-            return False, f"age<{min_pool_age_days}"
-
-        apply_filter("age", age_predicate)
 
     if not survivors:
         survivors = list(base_pool_set)
@@ -663,18 +602,6 @@ def select_best_pool(
                     reasons.append(adapter_info.source or "no_adapter")
             if safe_float(pool.get("tvl_usd"), 0.0) < config.min_tvl_usd:
                 reasons.append("tvl<min")
-            if allowed_assets:
-                symbol = str(pool.get("symbol") or "").upper()
-                if not any(asset.upper() in symbol for asset in allowed_assets):
-                    reasons.append("asset_not_allowed")
-            if max_apy_staleness_min > 0:
-                staleness = float(pool.get("apy_age_min") or pool.get("apyAgeMin") or pool.get("updatedMin") or 0)
-                if staleness > max_apy_staleness_min:
-                    reasons.append(f"stale>{max_apy_staleness_min}min")
-            if min_pool_age_days > 0:
-                pool_age = float(pool.get("poolAgeDays") or pool.get("pool_age_days") or 0)
-                if pool_age < min_pool_age_days:
-                    reasons.append(f"age<{min_pool_age_days}d")
             if not reasons:
                 reasons.append("other_filters")
             diagnostics.append(f"{pool.get('pool_id','?')}@{pool.get('chain','?')}:" + ",".join(reasons))
@@ -811,8 +738,6 @@ def main() -> None:
     selection_cfg = config.selection or {}
     if selection_cfg.get("gas_horizon_h") is not None:
         os.environ["EDGE_HORIZON_H"] = str(selection_cfg.get("gas_horizon_h"))
-    if selection_cfg.get("min_edge_eur") is not None:
-        os.environ["MIN_EDGE_EUR"] = str(selection_cfg.get("min_edge_eur"))
 
     previous_pool_id = state.pool_id
     next_pool_id = selected.get("pool_id")

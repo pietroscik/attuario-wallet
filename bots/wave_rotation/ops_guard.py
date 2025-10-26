@@ -55,7 +55,6 @@ def should_move(
     score_current = score_current or 0.0
 
     fx_rate = _decimal_env("FX_EUR_PER_ETH", "3000")
-    min_edge_eur = _decimal_env("MIN_EDGE_EUR", "0")
 
     horizon_hours_raw = os.getenv("EDGE_HORIZON_H", "24")
     try:
@@ -74,9 +73,9 @@ def should_move(
     gas_eur = gas_eth * fx_rate
 
     net_eur = edge_eur - gas_eur
-    if net_eur < min_edge_eur:
+    if net_eur <= 0:
         return False, (
-            f"edge_insuff:{net_eur:.2f}€ (edge={edge_eur:.2f}€, gas={gas_eur:.2f}€)"
+            f"edge_non_positive:{net_eur:.2f}€ (edge={edge_eur:.2f}€, gas={gas_eur:.2f}€)"
         )
 
     return True, f"edge_ok:{net_eur:.2f}€"

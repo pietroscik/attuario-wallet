@@ -11,56 +11,21 @@ def _read_number(path: Path, default: float = 0.0) -> float:
 
 
 def eligible_base(pool: dict, cfg: dict) -> bool:
-    """Soft filters: missing values do not exclude a pool."""
-
-    selection = cfg.get("selection", {})
+    """Apply only the hard TVL requirement before ranking by return."""
 
     min_tvl = float(cfg.get("min_tvl_usd", 0) or cfg.get("min_tvl", 0) or 0)
     tvl = pool.get("tvlUsd")
     if min_tvl and tvl is not None and float(tvl) < min_tvl:
         return False
-
-    min_age = float(selection.get("min_pool_age_days", 0) or 0)
-    age = pool.get("poolAgeDays")
-    if min_age and age is not None and float(age) < min_age:
-        return False
-
-    max_stale = float(selection.get("max_apy_staleness_min", 0) or 0)
-    stale = pool.get("apyAgeMin") or pool.get("updatedMin")
-    if max_stale and stale is not None and float(stale) > max_stale:
-        return False
-
-    allowed = selection.get("allowed_assets") or []
-    if allowed:
-        symbol = (pool.get("symbol") or "").upper()
-        if not any(token.upper() in symbol for token in allowed):
-            return False
 
     return True
 
 
 def why_not(pool: dict, cfg: dict) -> str:
-    selection = cfg.get("selection", {})
-
     min_tvl = float(cfg.get("min_tvl_usd", 0) or cfg.get("min_tvl", 0) or 0)
     tvl = pool.get("tvlUsd")
     if min_tvl and tvl is not None and float(tvl) < min_tvl:
         return f"tvl<{min_tvl}"
-
-    min_age = float(selection.get("min_pool_age_days", 0) or 0)
-    age = pool.get("poolAgeDays")
-    if min_age and age is not None and float(age) < min_age:
-        return f"age<{min_age}d"
-
-    max_stale = float(selection.get("max_apy_staleness_min", 0) or 0)
-    stale = pool.get("apyAgeMin") or pool.get("updatedMin")
-    if max_stale and stale is not None and float(stale) > max_stale:
-        return f"stale>{max_stale}m"
-
-    allowed = selection.get("allowed_assets") or []
-    symbol = (pool.get("symbol") or "").upper()
-    if allowed and not any(token.upper() in symbol for token in allowed):
-        return "asset:not-allowed"
 
     return "adapter:none-or-score≤0?"
 
