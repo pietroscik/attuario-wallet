@@ -1,0 +1,47 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Editor/IDE settings
+.vscode/
+.idea/
+*.iml
+
+# Env and secrets
+.env
+.secrets/
+bots/wave_rotation/.env
+contracts/.env
+
+# State/cache/runtime files
+state.json
+bots/wave_rotation/state.json
+bots/wave_rotation/capital.txt
+bots/wave_rotation/treasury.txt
+cache/
+logs/
+*.log
+
+# Outputs (reports, interim files)
+*.csv
+*.png
+report.png
+
+# Typechain / generated code (Hardhat)
+contracts/typechain-types/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# OS-specific
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+{
+  "chains": ["base", "arbitrum", "polygon", "solana"],
+  "min_tvl_usd": 0,
+  "delta_switch": 0.0001,
+  "reinvest_ratio": 0.5,
+  "treasury_token": "USDC",
+  "schedule_utc": "07:00",
+  "stop_loss_daily": -0.10,
+  "take_profit_daily": 0.05,
+  "sources": {
+    "defillama": true,
+    "protocol_apis": ["aerodrome", "velodrome", "kamino"]
+  },
+  "vault": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "chain": "base",
+    "function_execute": "executeStrategy(string,uint256,uint256)"
+  },
+  "telegram": {
+    "enabled": true,
+    "bot_token_env": "TELEGRAM_TOKEN",
+    "chat_id_env": "TELEGRAM_CHATID"
+  },
+  "adapters": {},
+  "selection": {
+    "top_n_scan": 200,
+    "min_pool_age_days": 0,
+    "max_apy_staleness_min": 1440,
+    "allowed_assets": [],
+    "blacklist_projects": [],
+    "adapter_penalty": 0.0,
+    "tvl_penalty_usd": 0,
+    "gas_horizon_h": 24,
+    "min_edge_eur": 0.5,
+    "switch_cooldown_s": 300,
+    "aggressive": true
+  }
+}

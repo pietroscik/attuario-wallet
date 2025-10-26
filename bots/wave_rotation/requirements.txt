@@ -1,0 +1,5 @@
+python-dotenv>=1.0
+requests>=2.31
+web3>=6.16
+pandas>=2.2
+matplotlib>=3.8
