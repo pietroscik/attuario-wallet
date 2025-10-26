@@ -34,5 +34,11 @@
     "min_edge_eur": 0.5,
     "switch_cooldown_s": 300,
     "aggressive": true
+  },
+  "autopause": {
+    "streak": 3,
+    "resume_wait_minutes": 360,
+    "resume_cooldown_minutes": 5,
+    "fast_signal_min": 0.0
   }
 }

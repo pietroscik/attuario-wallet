@@ -4,13 +4,13 @@ CODEX_RULES.md — Attuario “Wave Rotation”
 0) Scopo
 --------
 
-Implementare una strategia di rotazione giornaliera che sposta tutto il capitale verso il pool con miglior score del giorno, calcola il profitto di fine giornata, reinveste il 50% e accantona il 50% in treasury (USDC).  
+Implementare una strategia di rotazione che valuta i pool ogni finestra (default 5 minuti) e, al primo ciclo utile della giornata, sposta tutto il capitale verso il pool con miglior score. A fine giornata calcola il profitto, reinveste il 50% e accantona il 50% in treasury (USDC).
 ⚠️ Non introdurre filtri prudenziali ulteriori rispetto a quelli esplicitamente descritti qui.
 
 1) Definizioni & Invarianti
 ---------------------------
 
-- **Orizzonte:** esecuzione una volta ogni 24h (trigger Gelato o cron).
+- **Orizzonte:** valutazione continua con finestra minima di 5 minuti (configurabile). Gli aggiornamenti economici rimangono computati su base giornaliera.
 - **Score per il pool** \(i\) al giorno \(t\):
 
   ```
@@ -31,7 +31,7 @@ Implementare una strategia di rotazione giornaliera che sposta tutto il capitale
   - Treasury \(+= 0.5 ⋅ P\).
 
 - **Stop/Take (essenziali, non “prudenziali”):**
-  - Stop-loss: se perdita giornaliera < −10% → arresta esecuzione del giorno (non modificare capitale).
+  - Stop-loss: se perdita giornaliera < −10% → il capitale rimane invariato nella finestra e viene attivata l’autopause (vedi sotto) solo sulla parte esposta.
   - Take-profit parziale: se guadagno giornaliero ≥ +5% → nessuna azione extra, è già incorporato dal 50/50.
 
 - **Esclusioni minime (tecniche, non prudenziali):**
@@ -88,6 +88,12 @@ attuario/
     "enabled": true,
     "bot_token_env": "TELEGRAM_TOKEN",
     "chat_id_env": "TELEGRAM_CHATID"
+  },
+  "autopause": {
+    "streak": 3,
+    "resume_wait_minutes": 360,
+    "resume_cooldown_minutes": 5,
+    "fast_signal_min": 0.0
   }
 }
 ```
@@ -132,13 +138,14 @@ LOG_PATH=./wave_rotation.log
    - `profitto P = C * r_net`
    - `capital = C * (1 + 0.5 * r_net)`
    - `treasury += 0.5 * P`
-8. Stop/Take:
-   - Se `r_net < stop_loss_daily` → non eseguire update capitale (mantieni C), logga “stopped”.
+8. Stop/Take e autopause:
+   - Se `r_net < stop_loss_daily` → non eseguire update capitale (mantieni C), registra lo stato "stopped" e incrementa `crisis_streak`.
+   - Al raggiungimento di `autopause.streak` intervalli consecutivi in perdita il vault viene posto in pausa: il bot prosegue l'analisi ogni finestra ma non modifica capitale/treasury finché non arriva un segnale positivo ≥ `autopause.fast_signal_min` o trascorre `autopause.resume_wait_minutes`.
    - Se `r_net ≥ take_profit_daily` → nessuna azione extra (già 50/50).
 9. On-chain log: chiamare `AttuarioVault.executeStrategy(poolName, apyBps, capitalInWei)` dove:
    - `apyBps = int(APY * 10000)` (bps annui per coerenza storica).
    - `capitalInWei` = capitale in unità del token (es. USDC → 6 decimali, normalizzare a 1e6 prima).
-10. Telegram (se attivo): inviare messaggio con riassunto giornaliero (pool scelto, r_net, capitale, treasury).
+10. Telegram (se attivo): inviare messaggio strutturato con intestazione (switch o pool invariato), riepilogo previsto/realizzato, capitale, treasury, ROI, score (con delta) e stato formattato per punti elenco.
 
 6) Interfacce minime (Python)
 -----------------------------
