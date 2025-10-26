@@ -24,14 +24,8 @@
   "adapters": {},
   "selection": {
     "top_n_scan": 200,
-    "min_pool_age_days": 0,
-    "max_apy_staleness_min": 1440,
-    "allowed_assets": [],
     "blacklist_projects": [],
-    "adapter_penalty": 0.0,
-    "tvl_penalty_usd": 0,
     "gas_horizon_h": 24,
-    "min_edge_eur": 0.5,
     "switch_cooldown_s": 300,
     "aggressive": true
   },
