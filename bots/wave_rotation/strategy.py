@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import requests
 from dotenv import load_dotenv
@@ -190,6 +192,12 @@ def send_telegram(msg: str, config: StrategyConfig) -> None:
         print(f"[telegram] exception: {exc}")
 
 
+class AdapterInfo(NamedTuple):
+    ok: bool
+    source: str
+    adapter_type: Optional[str] = None
+
+
 def select_best_pool(
     pools: List[Dict[str, float]],
     config: StrategyConfig,
@@ -202,6 +210,12 @@ def select_best_pool(
     blacklist_projects = {
         str(p).lower() for p in selection_cfg.get("blacklist_projects", []) if p
     }
+
+    def safe_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
     exclude_virtual = os.getenv("EXCLUDE_VIRTUAL", "0").strip().lower() in {
         "1",
@@ -220,29 +234,144 @@ def select_best_pool(
     except ValueError:
         ttl_hours = 168.0
 
-    def has_adapter(pool: Dict[str, object]) -> bool:
-        if not require_adapter:
-            return True
+    builtin_adapter_hints = [
+        ("beefy", ("BEEFY", "beefy-auto")),
+        ("yearn", ("YEARN", "yearn-vault")),
+        ("sonne", ("CTOKEN", "compound-like")),
+        ("moonwell", ("CTOKEN", "compound-like")),
+        ("compound", ("CTOKEN", "compound")),
+        ("venus", ("CTOKEN", "compound-like")),
+        ("lodestar", ("CTOKEN", "compound-like")),
+        ("morpho", ("CTOKEN", "compound-like")),
+        ("comet", ("COMET", "compound-iii")),
+        ("exactly", ("ERC4626", "erc4626-vault")),
+        ("midas", ("ERC4626", "erc4626-vault")),
+        ("gearbox", ("ERC4626", "erc4626-vault")),
+        ("aave", ("AAVEV3", "aave-like")),
+        ("spark", ("AAVEV3", "aave-like")),
+        ("radiant", ("AAVEV3", "aave-like")),
+        ("geist", ("AAVEV3", "aave-like")),
+        ("benqi", ("AAVEV3", "aave-like")),
+    ]
 
-        pool_id = pool.get("pool_id", "")
-        if adapters_cfg.get(pool_id) or adapters_cfg.get(f"pool:{pool_id}"):
-            return True
+    adapter_meta: Dict[str, AdapterInfo] = {}
+
+    def _pool_meta_key(pool: Dict[str, object]) -> str:
+        pool_id = str(pool.get("pool_id") or "").strip()
+        if pool_id:
+            return pool_id
+        address = str(pool.get("address") or "").strip().lower()
+        if address:
+            return f"addr:{address}"
+        project = str(pool.get("project") or "").strip().lower()
+        chain = str(pool.get("chain") or "").strip().lower()
+        if project and chain:
+            return f"{chain}:{project}:{id(pool)}"
+        return f"pool:{id(pool)}"
+
+    def resolve_adapter(pool: Dict[str, object], *, require_probe: bool) -> AdapterInfo:
+        key = _pool_meta_key(pool)
+        cached_local = adapter_meta.get(key)
+        if cached_local and (cached_local.ok or not require_probe):
+            return cached_local
+
+        pool_id = str(pool.get("pool_id") or "").strip()
+        project = str(pool.get("project") or "").strip().lower()
+        chain = str(pool.get("chain") or "").strip().lower()
+        address = str(pool.get("address") or "").strip()
+
+        config_keys = []
+        if pool_id:
+            config_keys.extend([pool_id, f"pool:{pool_id}"])
+        if address:
+            address_lower = address.lower()
+            config_keys.extend([address_lower, f"address:{address_lower}"])
+        if project:
+            config_keys.extend([project, f"project:{project}"])
+        if chain and project:
+            config_keys.extend([f"{chain}:{project}", f"project:{project}@{chain}"])
+
+        for cfg_key in config_keys:
+            if not cfg_key:
+                continue
+            if cfg_key in adapters_cfg:
+                adapter_hint = adapters_cfg[cfg_key]
+                if isinstance(adapter_hint, dict):
+                    adapter_type = adapter_hint.get("type") or adapter_hint.get("adapter")
+                    tag = adapter_hint.get("source") or adapter_hint.get("label") or "config"
+                elif isinstance(adapter_hint, str):
+                    adapter_type = adapter_hint
+                    tag = adapter_hint
+                elif adapter_hint:
+                    adapter_type = str(adapter_hint)
+                    tag = "config"
+                else:
+                    adapter_type = None
+                    tag = "config"
+                info = AdapterInfo(True, f"config:{tag}", adapter_type if adapter_type else None)
+                adapter_meta[key] = info
+                return info
+
+        normalized_project = re.sub(r"[^a-z0-9]+", "", project)
+        for hint, (adapter_type, label) in builtin_adapter_hints:
+            if hint in normalized_project:
+                info = AdapterInfo(True, f"builtin:{label}", adapter_type)
+                adapter_meta[key] = info
+                cache_key = None
+                if pool_id and address:
+                    cache_key = f"{pool_id}:{address.lower()}"
+                elif address:
+                    cache_key = address.lower()
+                elif pool_id:
+                    cache_key = pool_id
+                if cache_key:
+                    set_cached(cache_key, adapter_type, reason=info.source)
+                return info
+
+        cache_key = None
+        if pool_id and address:
+            cache_key = f"{pool_id}:{address.lower()}"
+        elif address:
+            cache_key = address.lower()
+        elif pool_id:
+            cache_key = pool_id
+
+        if cache_key:
+            cached = get_cached(cache_key, ttl_hours)
+            if cached:
+                adapter_type = cached.get("type")
+                reason = cached.get("reason") or "cache"
+                if adapter_type and adapter_type != "none":
+                    info = AdapterInfo(True, reason, adapter_type)
+                    adapter_meta[key] = info
+                    return info
+                if not require_probe:
+                    info = AdapterInfo(False, reason, None)
+                    adapter_meta[key] = info
+                    return info
+
+        if not address or not address.startswith("0x"):
+            info = AdapterInfo(False, "missing_address", None)
+            adapter_meta[key] = info
+            return info
 
         if not w3:
-            return False
-
-        address = (pool.get("address") or "").strip()
-        if not address or not address.startswith("0x"):
-            return False
-
-        cache_key = f"{pool_id}:{address.lower()}"
-        cached = get_cached(cache_key, ttl_hours)
-        if cached:
-            return cached.get("type", "none") != "none"
+            info = AdapterInfo(False, "no_web3", None)
+            adapter_meta[key] = info
+            return info
 
         ok, adapter_type, _ = probe_type(w3, address)
-        set_cached(cache_key, adapter_type if ok else None, reason="probe")
-        return ok
+        info: AdapterInfo
+        if ok:
+            info = AdapterInfo(True, f"probe:{adapter_type}", adapter_type)
+            if cache_key:
+                set_cached(cache_key, adapter_type, reason=info.source)
+        else:
+            info = AdapterInfo(False, "probe:none", None)
+            if cache_key:
+                set_cached(cache_key, None, reason=info.source)
+        adapter_meta[key] = info
+        return info
 
     def is_virtual(pool: Dict[str, object]) -> bool:
         symbol = str(pool.get("symbol") or "").upper()
@@ -250,13 +379,72 @@ def select_best_pool(
         pool_id = str(pool.get("pool_id") or "").lower()
         return symbol.startswith("VIRTUAL") or "VIRTUAL" in name or "virtual" in pool_id
 
+    def pool_tvl(pool: Dict[str, object]) -> float:
+        value = pool.get("tvl_usd")
+        if value is None:
+            value = pool.get("tvlUsd")
+        try:
+            return float(value or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def pool_staleness(pool: Dict[str, object]) -> float:
+        for key in ("apy_age_min", "apyAgeMin", "updatedMin"):
+            value = pool.get(key)
+            if value is not None:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    continue
+        return 0.0
+
+    def pool_age(pool: Dict[str, object]) -> float:
+        for key in ("poolAgeDays", "pool_age_days"):
+            value = pool.get(key)
+            if value is not None:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    continue
+        return 0.0
+
+    def tokenize_assets(symbol: str) -> List[str]:
+        tokens = [symbol]
+        tokens.extend(re.split(r"[^A-Za-z0-9]+", symbol))
+        return [t for t in {tok.upper() for tok in tokens if tok}]
+
+    def allowed_asset_match(pool: Dict[str, object], allowed: List[str]) -> bool:
+        if not allowed:
+            return True
+
+        symbol = str(pool.get("symbol") or "")
+        symbol_upper = symbol.upper()
+        for asset in allowed:
+            asset_upper = str(asset).upper()
+            if asset_upper and asset_upper in symbol_upper:
+                return True
+
+        symbol_tokens = tokenize_assets(symbol)
+        underlying = pool.get("underlyingTokens") or pool.get("underlying_tokens") or []
+        for raw in underlying:
+            symbol_tokens.extend(tokenize_assets(str(raw)))
+
+        allowed_tokens = {str(asset).upper() for asset in allowed}
+        return any(token in allowed_tokens for token in symbol_tokens)
+
     candidates: List[Dict[str, object]] = []
-    
+    base_pool_set: List[Dict[str, object]] = []
+    base_relaxed = False
+
     # Apply selection filters from config
-    allowed_assets = selection_cfg.get("allowed_assets", [])
+    allowed_assets_raw = selection_cfg.get("allowed_assets", [])
+    if isinstance(allowed_assets_raw, str):
+        allowed_assets = [allowed_assets_raw]
+    else:
+        allowed_assets = list(allowed_assets_raw)
     max_apy_staleness_min = float(selection_cfg.get("max_apy_staleness_min", 0) or 0)
     min_pool_age_days = float(selection_cfg.get("min_pool_age_days", 0) or 0)
-    
+
     for pool in pools:
         project = str(pool.get("project") or "").lower()
         if project and project in blacklist_projects:
@@ -266,44 +454,142 @@ def select_best_pool(
         if exclude_virtual and is_virtual(pool):
             continue
 
-        # Check adapter availability (single check)
-        if require_adapter and not has_adapter(pool):
-            continue
+        base_pool_set.append(pool)
 
-        # Apply TVL filter
-        if pool.get("tvl_usd", 0.0) < config.min_tvl_usd:
-            continue
-        
-        # Apply allowed_assets filter if configured
-        if allowed_assets:
-            symbol = str(pool.get("symbol") or "").upper()
-            if not any(asset.upper() in symbol for asset in allowed_assets):
-                continue
-        
-        # Apply staleness filter if configured
-        if max_apy_staleness_min > 0:
-            staleness = float(pool.get("apy_age_min") or pool.get("apyAgeMin") or pool.get("updatedMin") or 0)
-            if staleness > max_apy_staleness_min:
-                continue
-        
-        # Apply minimum pool age filter if configured
-        if min_pool_age_days > 0:
-            pool_age = float(pool.get("poolAgeDays") or pool.get("pool_age_days") or 0)
-            if pool_age < min_pool_age_days:
-                continue
+    if not base_pool_set and pools:
+        base_pool_set = list(pools)
+        base_relaxed = True
 
-        apy = max(0.0, float(pool.get("apy") or 0.0))
+    survivors: List[Dict[str, object]] = list(base_pool_set)
+    filter_report: Dict[str, List[Dict[str, object]]] = {
+        "applied": [],
+        "skipped": [],
+    }
+
+    if base_relaxed:
+        filter_report.setdefault("relaxed", []).append("prefilter")
+
+    def apply_filter(tag: str, predicate):
+        nonlocal survivors
+        if not survivors:
+            return
+
+        filtered: List[Dict[str, object]] = []
+        rejected_reasons: Counter[str] = Counter()
+
+        for pool in survivors:
+            keep, reason = predicate(pool)
+            if keep:
+                filtered.append(pool)
+            else:
+                if reason:
+                    rejected_reasons[reason] += 1
+
+        if filtered:
+            survivors = filtered
+            filter_report["applied"].append(
+                {
+                    "filter": tag,
+                    "remaining": len(filtered),
+                    "rejections": dict(rejected_reasons),
+                }
+            )
+        else:
+            filter_report["skipped"].append(
+                {
+                    "filter": tag,
+                    "reason": dict(rejected_reasons) or {"cause": "all_rejected"},
+                }
+            )
+
+    def adapter_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
+        info = resolve_adapter(pool, require_probe=require_adapter)
+        if info.ok or not require_adapter:
+            return True, ""
+        reason = info.source or "no_adapter"
+        return False, reason
+
+    apply_filter("adapter", adapter_predicate)
+
+    min_tvl = float(config.min_tvl_usd)
+
+    def tvl_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
+        value = pool_tvl(pool)
+        if value >= min_tvl:
+            return True, ""
+        return False, "tvl<min"
+
+    apply_filter("tvl", tvl_predicate)
+
+    if allowed_assets:
+
+        def asset_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
+            if allowed_asset_match(pool, allowed_assets):
+                return True, ""
+            return False, "asset_not_allowed"
+
+        apply_filter("allowed_assets", asset_predicate)
+
+    if max_apy_staleness_min > 0:
+
+        def staleness_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
+            value = pool_staleness(pool)
+            if value <= max_apy_staleness_min:
+                return True, ""
+            return False, f"stale>{max_apy_staleness_min}"
+
+        apply_filter("staleness", staleness_predicate)
+
+    if min_pool_age_days > 0:
+
+        def age_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
+            value = pool_age(pool)
+            if value >= min_pool_age_days:
+                return True, ""
+            return False, f"age<{min_pool_age_days}"
+
+        apply_filter("age", age_predicate)
+
+    if not survivors:
+        survivors = list(base_pool_set)
+        filter_report["skipped"].append(
+            {
+                "filter": "fallback",
+                "reason": "no_survivors_after_filters",
+            }
+        )
+
+    if filter_report["skipped"]:
+        details: List[str] = []
+        for item in filter_report["skipped"]:
+            reason = item.get("reason")
+            if isinstance(reason, dict):
+                reason_desc = ",".join(f"{k}:{v}" for k, v in reason.items())
+            else:
+                reason_desc = str(reason)
+            details.append(f"{item['filter']}->{reason_desc}")
+        if details:
+            print(f"[select] filtri allentati: {'; '.join(details)}")
+
+    for pool in survivors:
+        apy = max(0.0, safe_float(pool.get("apy"), 0.0))
         r_day = daily_rate(apy)
-        
+
         # CRITICAL FIX: Convert annual fee to daily fee before subtracting
         # fee_pct is annual, need to scale to daily: annual_fee / 365
-        cost_annual = max(0.0, float(pool.get("fee_pct") or 0.0))
+        cost_annual = max(0.0, safe_float(pool.get("fee_pct"), 0.0))
         cost_daily = cost_annual / 365.0
-        
-        risk = max(0.0, min(1.0, float(pool.get("risk_score", 0.0))))
+
+        risk = max(0.0, min(1.0, safe_float(pool.get("risk_score", 0.0), 0.0)))
         # Use daily cost in score calculation
         s = r_day / (1.0 + cost_daily * (1.0 - risk)) if r_day > 0 else r_day
         r_net = r_day - cost_daily
+
+        adapter_info = resolve_adapter(pool, require_probe=False)
+
+        tvl_value = pool_tvl(pool)
+        staleness_value = pool_staleness(pool)
+        age_value = pool_age(pool)
 
         candidate = dict(pool)
         candidate.update(
@@ -314,23 +600,68 @@ def select_best_pool(
                 "score": s,
                 "cost_daily": cost_daily,
                 "cost_annual": cost_annual,
+                "adapter_ok": adapter_info.ok,
+                "tvl_usd": tvl_value,
+                "apy_age_min": staleness_value,
+                "pool_age_days": age_value,
             }
         )
+        if adapter_info.ok and adapter_info.source:
+            candidate["adapter_source"] = adapter_info.source
+        if adapter_info.adapter_type:
+            candidate["adapter_type"] = adapter_info.adapter_type
         candidates.append(candidate)
+
+    relaxed_notes: List[str] = []
+
+    if not candidates and pools:
+        for pool in pools:
+            apy = max(0.0, safe_float(pool.get("apy"), 0.0))
+            r_day = daily_rate(apy)
+            cost_annual = max(0.0, safe_float(pool.get("fee_pct"), 0.0))
+            cost_daily = cost_annual / 365.0
+            risk = max(0.0, min(1.0, safe_float(pool.get("risk_score", 0.0), 0.0)))
+            s = r_day / (1.0 + cost_daily * (1.0 - risk)) if r_day > 0 else r_day
+            r_net = r_day - cost_daily
+            adapter_info = resolve_adapter(pool, require_probe=False)
+            candidate = dict(pool)
+            candidate.update(
+                {
+                    "apy": apy,
+                    "r_day": r_day,
+                    "r_net": r_net,
+                    "score": s,
+                    "cost_daily": cost_daily,
+                    "cost_annual": cost_annual,
+                    "adapter_ok": adapter_info.ok,
+                    "tvl_usd": pool_tvl(pool),
+                    "apy_age_min": pool_staleness(pool),
+                    "pool_age_days": pool_age(pool),
+                }
+            )
+            if adapter_info.ok and adapter_info.source:
+                candidate["adapter_source"] = adapter_info.source
+            if adapter_info.adapter_type:
+                candidate["adapter_type"] = adapter_info.adapter_type
+            candidates.append(candidate)
+        if candidates:
+            relaxed_notes.append("raw_pool")
 
     if not candidates:
         top_n = int(selection_cfg.get("top_n_scan", int(os.getenv("AUTO_TOP_N", "40")) or 40))
         diagnostics: List[str] = []
-        for pool in sorted(pools, key=lambda x: float(x.get("apy", 0.0)), reverse=True)[:top_n]:
+        for pool in sorted(pools, key=lambda x: safe_float(x.get("apy"), 0.0), reverse=True)[:top_n]:
             reasons: List[str] = []
             project = str(pool.get("project") or "").lower()
             if project and project in blacklist_projects:
                 reasons.append("blacklist")
             if exclude_virtual and is_virtual(pool):
                 reasons.append("virtual")
-            if require_adapter and not has_adapter(pool):
-                reasons.append("no_adapter")
-            if pool.get("tvl_usd", 0.0) < config.min_tvl_usd:
+            if require_adapter:
+                adapter_info = resolve_adapter(pool, require_probe=require_adapter)
+                if not adapter_info.ok:
+                    reasons.append(adapter_info.source or "no_adapter")
+            if safe_float(pool.get("tvl_usd"), 0.0) < config.min_tvl_usd:
                 reasons.append("tvl<min")
             if allowed_assets:
                 symbol = str(pool.get("symbol") or "").upper()
@@ -353,10 +684,30 @@ def select_best_pool(
             print("[select] nessun candidato: ", "; ".join(diagnostics))
         return None, {"__diagnostics__": diagnostics}
 
-    candidates.sort(key=lambda x: x["score"], reverse=True)
-    best = candidates[0]
+    ranking_candidates = sorted(candidates, key=lambda x: x["score"], reverse=True)
+
+    adapter_focused = ranking_candidates
+    if require_adapter:
+        adapter_ready = [c for c in ranking_candidates if c.get("adapter_ok")]
+        if adapter_ready:
+            adapter_focused = adapter_ready
+        else:
+            relaxed_notes.append("adapter")
+
+    tvl_ready = [c for c in adapter_focused if safe_float(c.get("tvl_usd"), 0.0) >= min_tvl]
+    if tvl_ready:
+        adapter_focused = tvl_ready
+    elif min_tvl > 0:
+        relaxed_notes.append("tvl")
+
+    ranking_candidates = sorted(adapter_focused, key=lambda x: x["score"], reverse=True)
+    best = ranking_candidates[0]
 
     lookup = {c["pool_id"]: c for c in candidates}
+    lookup["__filter_report__"] = filter_report
+    if relaxed_notes:
+        filter_report.setdefault("relaxed", []).extend(relaxed_notes)
+        lookup["__relaxed__"] = relaxed_notes
     current = lookup.get(state.pool_id) if state.pool_id else None
 
     min_delta = float(config.delta_switch)
@@ -433,6 +784,10 @@ def main() -> None:
     ]
     metadata_bits.append(f"best={selected.get('pool_id')}")
     metadata_bits.append(f"score_best={selected.get('score', 0.0):.6f}")
+
+    relaxed_markers = candidate_map.get("__relaxed__") if candidate_map else None
+    if relaxed_markers:
+        metadata_bits.append("relaxed=" + "+".join(sorted(set(relaxed_markers))))
 
     reserve_eth = float(os.getenv("GAS_RESERVE_ETH", "0.004"))
     available_onchain = get_available_capital_eth(reserve_eth)

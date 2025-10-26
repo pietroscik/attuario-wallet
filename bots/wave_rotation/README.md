@@ -48,6 +48,14 @@ cd attuario
 source .venv/bin/activate
 python3 bots/wave_rotation/strategy.py
 python3 bots/wave_rotation/report.py
+
+# Valutazione operativa
+
+- Per un riepilogo rapido delle tre fasi (deploy, investimento, correzioni) esegui
+  `python bots/wave_rotation/status_report.py`. Il comando legge i file locali
+  (`state.json`, `log.csv`, `capital.txt`) e segnala gli aspetti da completare,
+  evidenziando ad esempio quando la tesoreria automatica è disattivata
+  (`TREASURY_AUTOMATION_ENABLED=false`).
 ```
 
 Per schedulare via cron/Gelato usa `scripts/run_daily.sh` (che carica `.env` e redirige i log in `bots/wave_rotation/daily.log`).
