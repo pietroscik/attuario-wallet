@@ -30,10 +30,11 @@ else:
     ]
     RPCS = [url for url in [primary] + fallbacks if url]
 
-if not RPCS:
-    raise RuntimeError(
-        "RPC configuration missing: set RPC_URL or RPC_URLS/RPC_FALLBACKS"
-    )
+# Defer RPC validation until actually needed
+# if not RPCS:
+#     raise RuntimeError(
+#         "RPC configuration missing: set RPC_URL or RPC_URLS/RPC_FALLBACKS"
+#     )
 
 ALLOWED_CHAIN_IDS = {
     int(x)
@@ -66,6 +67,10 @@ def _make_w3(url: str) -> Web3:
 
 def _connect(start_index: int = 0) -> None:
     global _w3, _current_index, _current_rpc_url
+    if not RPCS:
+        raise RuntimeError(
+            "RPC configuration missing: set RPC_URL or RPC_URLS/RPC_FALLBACKS"
+        )
     errors = []
     total = len(RPCS)
     for step in range(total):
@@ -123,10 +128,28 @@ def _rpc_try(fn, *args, **kwargs):
             raise last_exc
 
 
-_connect(0)
+# Lazy initialization - only connect when needed
+def _ensure_connected():
+    """Ensure RPC is connected, connecting if necessary."""
+    global _w3
+    if _w3 is None and RPCS:
+        _connect(0)
+    return _w3
+
+# Export lazy getter
+def get_w3():
+    """Get Web3 instance, connecting if not already connected."""
+    return _ensure_connected()
+
+# Legacy compatibility - for code that accesses w3 directly
+# This will be None until first connection
 w3 = _w3  # type: ignore
-cid = w3.eth.chain_id  # type: ignore
-current_rpc_url = _current_rpc_url
+
+def get_current_rpc_url():
+    """Get current RPC URL."""
+    if _w3 is None and RPCS:
+        _ensure_connected()
+    return _current_rpc_url
 
 # === ABI source setup (artifact | etherscan_v2 | embedded) =================
 
@@ -190,7 +213,8 @@ def _resolve_vault_abi(vault_address: str) -> list:
                 "ETHERSCAN_API_KEY mancante per VAULT_ABI_SOURCE=etherscan_v2"
             )
         try:
-            chain_id = w3.eth.chain_id  # type: ignore
+            w = get_w3()
+            chain_id = w.eth.chain_id  # type: ignore
         except Exception:
             chain_id = int(os.getenv("CHAIN_ID", str(BASE_CHAIN_ID)))
         return _etherscan_v2_getabi(vault_address, chain_id, apikey)
@@ -244,7 +268,7 @@ def _load_config() -> Optional[OnchainConfig]:
     if not _env_bool("ONCHAIN_ENABLED", False):
         return None
 
-    rpc_url = current_rpc_url or os.getenv("RPC_URL") or RPCS[0]
+    rpc_url = get_current_rpc_url() or os.getenv("RPC_URL") or (RPCS[0] if RPCS else None)
     private_key = os.getenv("PRIVATE_KEY")
     vault_address = os.getenv("VAULT_ADDRESS")
 
@@ -297,10 +321,11 @@ def _load_base_context() -> Optional[Tuple[OnchainConfig, Web3, Account]]:
     cfg = _load_config()
     if cfg is None:
         return None
-    if w3 is None:
+    w = get_w3()
+    if w is None:
         raise RuntimeError("RPC connection unavailable")
     account = Account.from_key(cfg.private_key)
-    return cfg, w3, account
+    return cfg, w, account
 
 
 def get_signer_context() -> Optional[Tuple[OnchainConfig, Web3, Account]]:
@@ -324,12 +349,13 @@ def get_available_capital_eth(reserve_eth: float = 0.004) -> Optional[float]:
     cfg = _load_config()
     if cfg is None:
         return None
-    if w3 is None:
+    w = get_w3()
+    if w is None:
         return None
 
     account = Account.from_key(cfg.private_key)
     try:
-        balance_wei = _rpc_try(lambda: w3.eth.get_balance(account.address))
+        balance_wei = _rpc_try(lambda: w.eth.get_balance(account.address))
     except Exception as err:  # pragma: no cover - network failure path
         print(f"[onchain] Impossibile ottenere il saldo on-chain: {err}")
         return None
