@@ -351,7 +351,7 @@ def select_best_pool(
                 break
         if diagnostics:
             print("[select] nessun candidato: ", "; ".join(diagnostics))
-        return None, {}
+        return None, {"__diagnostics__": diagnostics}
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
     best = candidates[0]
@@ -417,7 +417,11 @@ def main() -> None:
 
     selected, candidate_map = select_best_pool(pools, config, state, w3, capital_hint_eth)
     if not selected:
-        msg = "⚠️ Nessun pool supera i vincoli minimi (TVL, dati)."
+        diagnostics = candidate_map.get("__diagnostics__") if candidate_map else None
+        detail = ""
+        if diagnostics:
+            detail = "\n🔍 Dettagli: " + "; ".join(diagnostics)
+        msg = "⚠️ Nessun pool supera i vincoli minimi (TVL, dati)." + detail
         print(msg)
         send_telegram(msg, config)
         return
