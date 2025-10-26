@@ -11,9 +11,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-from bots.wave_rotation.adapters import get_adapter
-from bots.wave_rotation.onchain import get_signer_context
-from bots.wave_rotation.ops_guard import gas_ceiling_ok, should_move
+from adapters import get_adapter
+from onchain import get_signer_context
+from ops_guard import gas_ceiling_ok, should_move
 
 
 def _env_flag(name: str, default: bool = False) -> bool:

@@ -80,7 +80,7 @@ def fallback_if_empty(pools: list, cfg: dict, w3):
         return None
 
     try:
-        from bots.wave_rotation.auto_registry import probe_type
+        from auto_registry import probe_type
     except Exception:
         return None
 
