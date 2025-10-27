@@ -117,15 +117,45 @@
       "vault": "${YEARN_USDC_VAULT_BASE}",
       "asset": "${USDC_BASE}"
     },
+    "pool:base:yearn:WETH": {
+      "type": "yearn",
+      "vault": "${YEARN_WETH_VAULT_BASE}",
+      "asset": "${WETH_TOKEN_ADDRESS}"
+    },
     "pool:base:comet:USDC": {
       "type": "comet",
       "market": "${COMET_USDC_MARKET_BASE}",
       "asset": "${USDC_BASE}"
     },
+    "pool:base:comet:USDbC": {
+      "type": "comet",
+      "market": "${COMET_USDBC_MARKET_BASE}",
+      "asset": "${USDBC_BASE}"
+    },
     "pool:base:moonwell:cbETH": {
       "type": "ctoken",
       "ctoken": "${MOONWELL_CBETH_CTOKEN}",
       "asset": "${CBETH_BASE}"
+    },
+    "pool:base:moonwell:WETH": {
+      "type": "ctoken",
+      "ctoken": "${MOONWELL_WETH_CTOKEN}",
+      "asset": "${WETH_TOKEN_ADDRESS}"
+    },
+    "pool:base:moonwell:USDC": {
+      "type": "ctoken",
+      "ctoken": "${MOONWELL_USDC_CTOKEN}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:morpho:USDC": {
+      "type": "erc4626",
+      "vault": "${MORPHO_USDC_VAULT_BASE}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:morpho:WETH": {
+      "type": "erc4626",
+      "vault": "${MORPHO_WETH_VAULT_BASE}",
+      "asset": "${WETH_TOKEN_ADDRESS}"
     }
   },
   "selection": {

@@ -20,13 +20,17 @@ if Web3 is not None:
     from adapters_auto.ctoken_auto import CTokenAuto
     from adapters_auto.erc4626_auto import ERC4626Auto
     from adapters_auto.yearn_auto import YearnAuto
+    from adapters_auto.morpho_auto import MorphoAuto
+    from adapters_auto.sonne_auto import SonneAuto
 
     AUTO_CLASSES = [
         ("ERC4626", ERC4626Auto),
+        ("MORPHO", MorphoAuto),
         ("BEEFY", BeefyAuto),
         ("YEARN", YearnAuto),
         ("COMET", CometAuto),
         ("CTOKEN", CTokenAuto),
+        ("SONNE", SonneAuto),
         ("AAVEV3", AaveV3Auto),
     ]
 else:  # pragma: no cover - used only in environments without web3
