@@ -21,13 +21,34 @@
     "bot_token_env": "TELEGRAM_TOKEN",
     "chat_id_env": "TELEGRAM_CHATID"
   },
-  "adapters": {},
+  "adapters": {
+    "pool:base:aave-v3:WETH": {
+      "type": "aave_v3",
+      "pool": "${AAVE_POOL_ADDRESS_8453}",
+      "asset": "${WETH_TOKEN_ADDRESS}",
+      "decimals": 18,
+      "weth_gateway": "${AAVE_WETH_GATEWAY_8453}"
+    },
+    "pool:base:beefy:CLANKER-WETH": {
+      "type": "lp_beefy_aero",
+      "beefy_vault": "${BEEFY_CLANKER_WETH_VAULT}",
+      "router": "${AERODROME_ROUTER_8453}",
+      "token0": "${CLANKER_TOKEN_ADDRESS}",
+      "token1": "${WETH_TOKEN_ADDRESS}",
+      "slippage_bps": "${LP_SLIPPAGE_BPS}"
+    },
+    "pool:base:erc4626:custom": {
+      "type": "erc4626",
+      "vault": "${ERC4626_VAULT_ADDRESS}",
+      "asset": "${ERC4626_UNDERLYING_ADDRESS}",
+      "decimals": "${ERC4626_DECIMALS}"
+    }
+  },
   "selection": {
+    "min_tvl_usd": 0,
     "top_n_scan": 200,
-    "blacklist_projects": [],
-    "gas_horizon_h": 24,
-    "switch_cooldown_s": 300,
-    "aggressive": true
+    "min_pool_age_days": 0,
+    "max_apy_staleness_min": 0
   },
   "autopause": {
     "streak": 3,
