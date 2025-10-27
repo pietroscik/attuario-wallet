@@ -45,7 +45,12 @@ class YearnAdapter(Adapter):
             except Exception:
                 decimals = 18
             minimum = 10 ** min(decimals, 6)
-            wrap_to_target_if_needed(self.w3, self.signer, self.sender, self.asset.address, minimum)
+            try:
+                wrap_to_target_if_needed(
+                    self.w3, self.signer, self.sender, self.asset.address, minimum
+                )
+            except Exception as exc:
+                return {"status": "error", "error": f"wrap_failed:{exc}"}
             balance = self._asset_balance()
 
         if balance == 0:

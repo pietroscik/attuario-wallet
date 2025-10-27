@@ -77,6 +77,9 @@ def should_move(
 ) -> Tuple[bool, str]:
     """Decide if the expected edge justifies switching pool."""
 
+    if score_current is None:
+        return False, "edge:score_current_missing"
+
     delta = _as_decimal(score_best) - _as_decimal(score_current)
     if delta <= 0:
         return False, f"edge:delta<=0(delta={_fmt(delta)})"

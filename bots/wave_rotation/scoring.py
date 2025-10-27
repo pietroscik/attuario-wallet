@@ -22,11 +22,22 @@ def daily_rate(apy: float) -> float:
 
 def _extract_cost(pool: dict) -> float:
     """Return the operational cost for the day as a decimal."""
+
     value = pool.get("fee_pct")
     try:
-        return max(0.0, float(value)) if value is not None else 0.0
+        annual_cost = max(0.0, float(value)) if value is not None else 0.0
     except (TypeError, ValueError):
         return 0.0
+
+    # DefiLlama exposes fees as annual percentages. Convert to a daily cost so the
+    # score operates on the same time basis as the APY-derived return.
+    return annual_cost / 365.0
+
+
+def daily_cost(pool: dict) -> float:
+    """Public helper returning the daily operational cost."""
+
+    return _extract_cost(pool)
 
 
 def _extract_risk(pool: dict) -> float:

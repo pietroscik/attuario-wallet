@@ -145,7 +145,7 @@ def rotate_portfolio(
     edge_ok, edge_note = should_move(
         capital_eth,
         score_best,
-        score_current,
+        score_current if score_current is not None else 0.0,
         est_move_gas=est_gas,
         w3=w3,
     )

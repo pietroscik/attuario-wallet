@@ -62,7 +62,8 @@ def test_scoring_functions():
         "risk_score": 0.2,
     }
     score = normalized_score(pool, adapter_src="explicit", cfg={})
-    expected_score = daily_rate(pool["apy"]) / (1 + pool["fee_pct"] * (1 - pool["risk_score"]))
+    cost_daily = pool["fee_pct"] / 365.0
+    expected_score = daily_rate(pool["apy"]) / (1 + cost_daily * (1 - pool["risk_score"]))
     assert abs(score - expected_score) < 1e-9, "Score should follow the CODEX_RULES formula"
     print(f"✓ normalized_score = {score:.6f}")
     
@@ -161,6 +162,25 @@ def test_ops_guard_requires_positive_delta(monkeypatch):
     assert note.startswith("edge:delta<=0")
 
 
+def test_ops_guard_requires_current_score(monkeypatch):
+    """If the current score is missing the guard should reject the move."""
+
+    from ops_guard import should_move
+
+    monkeypatch.delenv("MIN_EDGE_SCORE", raising=False)
+
+    ok, note = should_move(
+        capital_eth=10.0,
+        score_best=0.02,
+        score_current=None,
+        est_move_gas=0,
+        w3=None,
+    )
+
+    assert ok is False
+    assert note == "edge:score_current_missing"
+
+
 def test_ops_guard_allows_positive_edge_without_web3(monkeypatch):
     """When Web3 is unavailable the guard still allows profitable moves."""
 
@@ -195,7 +215,11 @@ def test_ops_guard_respects_gas_cost(monkeypatch):
 
     class DummyEth:
         def __init__(self, gas_price):
-            self.gas_price = gas_price
+            self._gas_price = gas_price
+
+        @property
+        def gas_price(self):
+            return self._gas_price
 
     class DummyWeb3:
         def __init__(self, gas_price):

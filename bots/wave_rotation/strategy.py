@@ -39,7 +39,7 @@ from onchain import (
     get_available_capital_eth,
     get_signer_context,
 )
-from scoring import daily_rate, should_switch
+from scoring import daily_cost, daily_rate, normalized_score, should_switch
 from treasury import dispatch_treasury_payout
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -235,11 +235,10 @@ def select_best_pool(
 
         apy = safe_float(pool.get("apy"), 0.0)
         r_day = daily_rate(apy)
-        cost = max(0.0, safe_float(pool.get("fee_pct"), 0.0))
+        cost_daily = daily_cost(pool)
         risk = max(0.0, min(1.0, safe_float(pool.get("risk_score"), 0.0)))
-        denominator = 1.0 + cost * (1.0 - risk)
-        score = r_day / denominator if denominator > 0 else 0.0
-        r_net = r_day - cost
+        score = normalized_score(pool)
+        r_net = r_day - cost_daily
         tvl_value = pool_tvl(pool)
 
         candidate = dict(pool)
@@ -250,7 +249,7 @@ def select_best_pool(
                 "r_day": r_day,
                 "r_net": r_net,
                 "score": score,
-                "cost": cost,
+                "cost": cost_daily,
                 "risk_score": risk,
                 "tvl_usd": tvl_value,
             }
