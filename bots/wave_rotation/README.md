@@ -78,35 +78,64 @@ Per schedulare via cron/Gelato usa `scripts/run_daily.sh` (che carica `.env` e r
 
 ## Pool Configurati
 
-La strategia ora supporta **15 pool** su Base chain, coprendo tutti i principali settori DeFi:
+La strategia ora supporta **21 pool** su Base chain, coprendo tutti i principali settori DeFi:
 
 - **4 Aave v3 Lending**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP**: USDC/cbBTC, USDC/USDT (stable), WETH/USDC, cbETH/WETH (LST), WETH/USDT
-- **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
-- **1 Yearn Vault**: Yearn USDC su Base
-- **2 Mercati Compound-based**: Comet USDC (Compound v3) e Moonwell cbETH (cToken)
+- **5 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault, Morpho USDC, Morpho WETH
+- **2 Yearn Vaults**: Yearn USDC e WETH su Base
+- **2 Compound V3 (Comet)**: USDC market e USDbC market
+- **3 Moonwell (Compound V2 fork)**: cbETH, WETH, USDC cTokens
 
-Per configurare i nuovi pool:
+### Risoluzione Automatica degli Indirizzi
 
-1. **Verifica configurazione**:
+Il sistema include script di risoluzione automatica per popolare le variabili d'ambiente tramite API:
+
+```bash
+# Risolvi tutti gli indirizzi dei protocolli
+./scripts/resolve_beefy_vaults.sh     # Beefy vaults tramite API Beefy
+./scripts/resolve_yearn_vaults.sh     # Yearn vaults tramite API Yearn
+./scripts/resolve_compound_markets.sh # Compound/Moonwell markets (indirizzi ufficiali)
+./scripts/resolve_erc4626_vaults.sh   # ERC-4626 vaults verificati
+```
+
+Gli script:
+- ✅ Interrogano API pubbliche dei protocolli
+- ✅ Validano la chain e lo stato dei vault
+- ✅ Esportano variabili per la run corrente
+- ✅ Persistono in GitHub Environment Variables (se eseguiti in GitHub Actions)
+
+Per configurare i pool:
+
+1. **Verifica configurazione degli adapter**:
    ```bash
-   python3 validate_pools.py
+   python3 validate_adapters.py
    ```
 
-2. **Imposta indirizzi mancanti** nel `.env` (vedi `.env.example` per la lista completa):
-   - Token addresses (USDT, cbETH, WETH)
-   - Beefy vault addresses
-   - ERC-4626 vault addresses
-   - Yearn vault addresses
-   - Mercati Compound (Comet) e Moonwell cToken
+2. **Esegui gli script di risoluzione** (opzionale, se vuoi indirizzi aggiornati):
+   ```bash
+   ./scripts/resolve_beefy_vaults.sh
+   ./scripts/resolve_yearn_vaults.sh
+   ./scripts/resolve_compound_markets.sh
+   ./scripts/resolve_erc4626_vaults.sh
+   ```
 
-3. **Documentazione completa**:
+3. **Imposta indirizzi mancanti manualmente** nel `.env` (vedi `.env.example` per la lista completa):
+   - Token addresses (già preconfigurati per Base)
+   - Beefy vault addresses (popolati da script)
+   - ERC-4626 vault addresses (popolati da script)
+   - Yearn vault addresses (popolati da script)
+   - Compound/Moonwell markets (popolati da script)
+
+4. **Documentazione completa**:
+   - `ADAPTER_COVERAGE.md` - Documentazione completa degli adapter e protocolli supportati
    - `POOLS.md` - Descrizione dettagliata di tutti i pool
    - `POOL_SETUP.md` - Guida passo-passo alla configurazione
 
-4. **Test configurazione**:
+5. **Test configurazione**:
    ```bash
-   python3 test_pools.py
+   python3 test_adapter_coverage.py  # Test copertura adapter
+   python3 test_pools.py             # Test configurazione pool
    ```
 
 ## Allocazione automatica verso i pool
@@ -150,3 +179,19 @@ Per configurare i nuovi pool:
 
 - Usa `scripts/run_wave_rotation_loop.sh` per un loop continuo: carica `.env` (incluso `WAVE_LOOP_INTERVAL_SECONDS`, default 3600s) e scrive i log in `bots/wave_rotation/daily.log`.
 - Lo stop-loss giornaliero di default è -5% (`stop_loss_daily` in `config.json`); aggiorna il file se vuoi un’altra soglia.
+
+## Copertura Adapter Espansa
+
+Il sistema ora supporta **8 tipi di adapter automatici** e **6 adapter espliciti**, coprendo i principali protocolli DeFi:
+
+### Protocolli Supportati:
+- ✅ Aave V3 - Lending decentralizzato  
+- ✅ Morpho Blue - Lending ottimizzato
+- ✅ Compound V3 (Comet) - Lending algoritmico
+- ✅ Moonwell - Compound V2 fork
+- ✅ Sonne Finance - Lending su Optimism
+- ✅ Yearn Finance - Yield aggregation
+- ✅ Beefy Finance - Auto-compounding
+- ✅ ERC-4626 Standard - Vaults compatibili
+
+Consulta `ADAPTER_COVERAGE.md` per la documentazione completa degli adapter.
