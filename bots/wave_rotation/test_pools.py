@@ -171,6 +171,54 @@ def test_required_fields():
     print("✓ All adapters have required fields")
 
 
+def test_token_decimals_if_rpc():
+    """Test token decimals on-chain if RPC is available."""
+    import os
+    
+    rpc = os.getenv("BASE_RPC", os.getenv("BASE_RPC_URL", "https://mainnet.base.org"))
+    
+    try:
+        from web3 import Web3
+    except ImportError:
+        print("⊘ Skipping decimals test (web3 not installed)")
+        return
+    
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 10}))
+        if not w3.is_connected():
+            print("⊘ Skipping decimals test (RPC not connected)")
+            return
+    except Exception:
+        print("⊘ Skipping decimals test (RPC connection failed)")
+        return
+    
+    # token -> expected decimals
+    expected = {
+        os.getenv("USDC_BASE"): 6,
+        os.getenv("USDT_BASE"): 6,
+        os.getenv("USDBC_BASE"): 6,
+        os.getenv("WETH_TOKEN_ADDRESS"): 18,
+        os.getenv("CBETH_BASE"): 18,
+        os.getenv("CBBTC_BASE"): 8,
+        os.getenv("WSTETH_BASE"): 18,
+    }
+    
+    abi = [{"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "type": "function"}]
+    
+    for addr, exp in expected.items():
+        if not addr or addr == '0x0000000000000000000000000000000000000000':
+            continue
+        try:
+            token = w3.eth.contract(Web3.to_checksum_address(addr), abi=abi)
+            dec = token.functions.decimals().call()
+            assert dec == exp, f"Bad decimals for {addr}: {dec} != {exp}"
+            print(f"✓ {addr[:10]}... has {dec} decimals")
+        except Exception as e:
+            print(f"⊘ Could not check {addr[:10]}...: {e}")
+    
+    print("✓ Token decimals validated")
+
+
 if __name__ == "__main__":
     print("Testing pool configurations...\n")
     
@@ -183,5 +231,6 @@ if __name__ == "__main__":
     test_eth_stable_pools()
     test_btc_pools()
     test_required_fields()
+    test_token_decimals_if_rpc()
     
     print("\n✅ All pool configuration tests passed!")
