@@ -86,8 +86,8 @@ These guardrails prevent economically irrational moves but can be disabled via e
 
 2. **Economic Edge Check** (Can be disabled)
    - Ensures expected profit exceeds gas costs
-   - Uses `EDGE_HORIZON_H` (default 24h) for calculation
-   - Can be made more aggressive by lowering `MIN_EDGE_EUR`
+   - Controlled via `MIN_EDGE_SCORE`, `MIN_EDGE_ETH`, `MIN_EDGE_USD`, `EDGE_GAS_MULTIPLIER`
+   - Optional USD threshold requires `ETH_PRICE_USD`
 
 3. **TVL Minimum** (Configurable)
    - `min_tvl_usd: 100000` in config.json
@@ -183,7 +183,10 @@ Key environment variables and their defaults:
 | `REQUIRE_ADAPTER_BEFORE_RANK` | `0` | Require adapter before ranking |
 | `AGGRO_MODE` | `` | Skip penalties (also controlled by config) |
 | `GAS_PRICE_MAX_GWEI` | unset | Maximum gas price (optional) |
-| `MIN_EDGE_EUR` | unset | Minimum economic edge (optional) |
+| `MIN_EDGE_SCORE` | unset | Minimum score delta before moving |
+| `MIN_EDGE_ETH` | unset | Minimum expected gain in ETH |
+| `MIN_EDGE_USD` | unset | Minimum expected gain in USD (requires `ETH_PRICE_USD`) |
+| `EDGE_GAS_MULTIPLIER` | `1.0` | Multiplier for gas cost comparison |
 
 ## Recommendations
 
@@ -197,7 +200,7 @@ Key environment variables and their defaults:
 2. **For Testing**:
    - Use `PORTFOLIO_DRY_RUN=true` to simulate without executing
    - Set `ONCHAIN_ENABLED=false` to skip on-chain calls
-   - Test with different `EDGE_HORIZON_H` values to tune sensitivity
+   - Tune `MIN_EDGE_SCORE`, `MIN_EDGE_ETH`, `MIN_EDGE_USD`, or `EDGE_GAS_MULTIPLIER` to adjust sensitivity
 
 3. **Monitoring**:
    - Check `bots/wave_rotation/log.csv` for execution history

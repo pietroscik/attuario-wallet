@@ -102,7 +102,7 @@ scripts/resolve_beefy_vaults.sh
 
 ### Immediate Execution
 - Variables are set in `$GITHUB_ENV` for immediate use
-- Strategy runs with all 12 pools without manual configuration
+- Strategy runs with all 15 pools once the required addresses are resolved automatically
 
 ### Persistence
 - Variables are saved to GitHub Environment (if permissions allow)

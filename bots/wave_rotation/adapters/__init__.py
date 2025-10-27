@@ -2,18 +2,51 @@
 
 from __future__ import annotations
 
+import importlib
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Type
 
-from .aave_v3 import AaveV3Adapter
-from .erc4626 import ERC4626Adapter
-from .lp_beefy_aero import LpBeefyAerodromeAdapter
+from .base import Adapter
 
 
-ADAPTER_TYPES = {
-    "erc4626": ERC4626Adapter,
-    "aave_v3": AaveV3Adapter,
-    "lp_beefy_aero": LpBeefyAerodromeAdapter,
+def _missing_adapter_cls(dep_name: str, adapter_name: str, exc: Exception) -> Type[Adapter]:
+    class _MissingAdapter(Adapter):  # type: ignore[abstract]
+        """Placeholder that surfaces the missing optional dependency at runtime."""
+
+        def __init__(self, *_args, **_kwargs):
+            raise ModuleNotFoundError(
+                f"{adapter_name} requires optional dependency '{dep_name}'."
+            ) from exc
+
+        def deposit_all(self) -> Dict[str, object]:  # pragma: no cover - defensive path
+            raise RuntimeError(f"Dependency '{dep_name}' missing for {adapter_name}") from exc
+
+        def withdraw_all(self) -> Dict[str, object]:  # pragma: no cover - defensive path
+            raise RuntimeError(f"Dependency '{dep_name}' missing for {adapter_name}") from exc
+
+    _MissingAdapter.__name__ = adapter_name
+    return _MissingAdapter
+
+
+def _load_adapter(module_name: str, class_name: str, dep_hint: str = "web3") -> Type[Adapter]:
+    try:
+        module = importlib.import_module(f".{module_name}", __name__)
+        cls = getattr(module, class_name)
+        if not issubclass(cls, Adapter):  # pragma: no cover - defensive check
+            raise TypeError(f"{class_name} must extend Adapter")
+        return cls
+    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency path
+        missing = exc.name or dep_hint
+        return _missing_adapter_cls(missing, class_name, exc)
+
+
+ADAPTER_TYPES: Dict[str, Type[Adapter]] = {
+    "erc4626": _load_adapter("erc4626", "ERC4626Adapter"),
+    "aave_v3": _load_adapter("aave_v3", "AaveV3Adapter"),
+    "lp_beefy_aero": _load_adapter("lp_beefy_aero", "LpBeefyAerodromeAdapter"),
+    "yearn": _load_adapter("yearn", "YearnAdapter"),
+    "comet": _load_adapter("comet", "CometAdapter"),
+    "ctoken": _load_adapter("ctoken", "CTokenAdapter"),
 }
 
 

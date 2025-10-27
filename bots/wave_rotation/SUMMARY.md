@@ -46,7 +46,7 @@ All requirements from the optimization issue have been addressed:
 
 **Economic Guardrails (Optional, Can Be Disabled):**
 - Gas ceiling (only if `GAS_PRICE_MAX_GWEI` set)
-- Economic edge check (can be tuned with `MIN_EDGE_EUR`)
+- Economic edge check (tune with `MIN_EDGE_SCORE`, `MIN_EDGE_ETH`, `MIN_EDGE_USD`, `EDGE_GAS_MULTIPLIER`)
 - TVL minimum (100k USD per CODEX_RULES)
 
 **Result:** Pool selection is NOT blocked by excessive guardrails ✅
@@ -131,8 +131,11 @@ REQUIRE_ADAPTER_BEFORE_RANK=0
 ```bash
 # Economic guardrails (can be adjusted)
 GAS_PRICE_MAX_GWEI=50
-EDGE_HORIZON_H=24
-MIN_EDGE_EUR=0.50
+MIN_EDGE_SCORE=0.001
+MIN_EDGE_ETH=0.002
+MIN_EDGE_USD=1.00
+ETH_PRICE_USD=3200
+EDGE_GAS_MULTIPLIER=1.2
 ```
 
 ## Conclusion

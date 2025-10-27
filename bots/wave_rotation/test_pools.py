@@ -26,7 +26,7 @@ def test_adapter_types():
         config = json.load(fh)
     
     adapters = config.get("adapters", {})
-    valid_types = {"aave_v3", "lp_beefy_aero", "erc4626"}
+    valid_types = {"aave_v3", "lp_beefy_aero", "erc4626", "yearn", "comet", "ctoken"}
     
     for pool_id, adapter_config in adapters.items():
         adapter_type = adapter_config.get("type")
@@ -43,7 +43,7 @@ def test_pool_count():
     pool_count = len(adapters)
     
     print(f"✓ Total pools configured: {pool_count}")
-    assert pool_count >= 12, f"Expected at least 12 pools, found {pool_count}"
+    assert pool_count >= 15, f"Expected at least 15 pools, found {pool_count}"
 
 
 def test_pool_categories():
@@ -57,14 +57,23 @@ def test_pool_categories():
     aave_pools = [p for p, c in adapters.items() if c.get("type") == "aave_v3"]
     lp_pools = [p for p, c in adapters.items() if c.get("type") == "lp_beefy_aero"]
     erc4626_pools = [p for p, c in adapters.items() if c.get("type") == "erc4626"]
-    
+    yearn_pools = [p for p, c in adapters.items() if c.get("type") == "yearn"]
+    comet_pools = [p for p, c in adapters.items() if c.get("type") == "comet"]
+    ctoken_pools = [p for p, c in adapters.items() if c.get("type") == "ctoken"]
+
     print(f"✓ Aave v3 lending pools: {len(aave_pools)}")
     print(f"✓ Beefy/Aerodrome LP pools: {len(lp_pools)}")
     print(f"✓ ERC-4626 vault pools: {len(erc4626_pools)}")
-    
+    print(f"✓ Yearn vault pools: {len(yearn_pools)}")
+    print(f"✓ Comet markets: {len(comet_pools)}")
+    print(f"✓ cToken markets: {len(ctoken_pools)}")
+
     assert len(aave_pools) >= 3, "Need at least 3 Aave lending pools"
     assert len(lp_pools) >= 4, "Need at least 4 LP pools"
     assert len(erc4626_pools) >= 2, "Need at least 2 ERC-4626 vaults"
+    assert len(yearn_pools) >= 1, "Need at least 1 Yearn vault"
+    assert len(comet_pools) >= 1, "Need at least 1 Comet market"
+    assert len(ctoken_pools) >= 1, "Need at least 1 cToken market"
 
 
 def test_stable_pools():
@@ -167,6 +176,21 @@ def test_required_fields():
         elif adapter_type == "erc4626":
             assert "vault" in adapter_config, f"Missing 'vault' in {pool_id}"
             assert "asset" in adapter_config, f"Missing 'asset' in {pool_id}"
+
+        elif adapter_type == "yearn":
+            assert "vault" in adapter_config, f"Missing 'vault' in {pool_id}"
+
+        elif adapter_type == "comet":
+            assert (
+                "market" in adapter_config or "comet" in adapter_config
+            ), f"Missing 'market' in {pool_id}"
+            assert "asset" in adapter_config, f"Missing 'asset' in {pool_id}"
+
+        elif adapter_type == "ctoken":
+            assert "ctoken" in adapter_config or "token" in adapter_config, f"Missing 'ctoken' in {pool_id}"
+            assert (
+                "asset" in adapter_config or "underlying" in adapter_config
+            ), f"Missing 'asset/underlying' in {pool_id}"
     
     print("✓ All adapters have required fields")
 

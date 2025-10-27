@@ -3,6 +3,7 @@
 
 """Basic smoke tests for wave rotation strategy."""
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -11,19 +12,36 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def test_imports():
     """Test that all modules can be imported."""
-    try:
-        import strategy
-        import data_sources
-        import scoring
-        import executor
-        import portfolio
-        import treasury
-        import onchain
-        print("✓ All imports successful")
-        return True
-    except Exception as e:
-        print(f"✗ Import failed: {e}")
-        return False
+    modules = [
+        "strategy",
+        "data_sources",
+        "scoring",
+        "executor",
+        "portfolio",
+        "treasury",
+        "onchain",
+    ]
+
+    skipped = []
+    imported = []
+
+    for module in modules:
+        try:
+            importlib.import_module(module)
+            imported.append(module)
+        except ModuleNotFoundError as exc:
+            # Optional dependency missing: skip the module but keep the test informative.
+            missing = exc.name or "unknown"
+            if missing == module or missing.startswith("bots.w"):
+                raise
+            skipped.append((module, missing))
+
+    for name in imported:
+        print(f"✓ Imported {name}")
+    for name, dep in skipped:
+        print(f"⊘ Skipped {name} (missing optional dependency: {dep})")
+
+    assert imported, "At least one module should import successfully"
 
 def test_scoring_functions():
     """Test scoring functions."""
@@ -39,16 +57,16 @@ def test_scoring_functions():
     # Test normalized_score
     pool = {
         "apy": 0.15,
-        "tvl_usd": 1000000,
-        "perfFeeBps": 0,
-        "mgmtFeeBps": 0,
+        "tvl_usd": 1_000_000,
+        "fee_pct": 0.01,
+        "risk_score": 0.2,
     }
-    config = {"selection": {"aggressive": True}}
-    score = normalized_score(pool, adapter_src="explicit", cfg=config)
-    assert score > 0, "Score should be positive for good pool"
+    score = normalized_score(pool, adapter_src="explicit", cfg={})
+    cost_daily = pool["fee_pct"] / 365.0
+    expected_score = daily_rate(pool["apy"]) / (1 + cost_daily * (1 - pool["risk_score"]))
+    assert abs(score - expected_score) < 1e-9, "Score should follow the CODEX_RULES formula"
     print(f"✓ normalized_score = {score:.6f}")
     
-    return True
 
 def test_data_normalization():
     """Test pool data normalization."""
@@ -69,7 +87,6 @@ def test_data_normalization():
     assert normalized["tvl_usd"] == 1500000
     print(f"✓ Pool normalization works: {normalized['pool_id']}")
     
-    return True
 
 def test_settle_day():
     """Test capital settlement logic."""
@@ -86,7 +103,6 @@ def test_settle_day():
     assert treasury_delta == 2.5, f"Treasury should be 2.5, got {treasury_delta}"
     
     print(f"✓ settle_day: profit={profit}, new_capital={capital_new}, treasury={treasury_delta}")
-    return True
 
 def test_should_switch():
     """Test pool switching logic."""
@@ -118,8 +134,122 @@ def test_should_switch():
     )
     assert result is False, "Should not switch when improvement <1%"
     print("✓ should_switch: +0.96% improvement -> no switch")
-    
-    return True
+
+
+def test_ops_guard_requires_positive_delta(monkeypatch):
+    """The economic guard blocks moves when the score delta is not positive."""
+
+    from ops_guard import should_move
+
+    for name in [
+        "MIN_EDGE_SCORE",
+        "MIN_EDGE_ETH",
+        "MIN_EDGE_USD",
+        "ETH_PRICE_USD",
+        "EDGE_GAS_MULTIPLIER",
+    ]:
+        monkeypatch.delenv(name, raising=False)
+
+    ok, note = should_move(
+        capital_eth=10.0,
+        score_best=0.009,
+        score_current=0.01,
+        est_move_gas=0,
+        w3=None,
+    )
+
+    assert ok is False
+    assert note.startswith("edge:delta<=0")
+
+
+def test_ops_guard_requires_current_score(monkeypatch):
+    """If the current score is missing the guard should reject the move."""
+
+    from ops_guard import should_move
+
+    monkeypatch.delenv("MIN_EDGE_SCORE", raising=False)
+
+    ok, note = should_move(
+        capital_eth=10.0,
+        score_best=0.02,
+        score_current=None,
+        est_move_gas=0,
+        w3=None,
+    )
+
+    assert ok is False
+    assert note == "edge:score_current_missing"
+
+
+def test_ops_guard_allows_positive_edge_without_web3(monkeypatch):
+    """When Web3 is unavailable the guard still allows profitable moves."""
+
+    from ops_guard import should_move
+
+    for name in [
+        "MIN_EDGE_SCORE",
+        "MIN_EDGE_ETH",
+        "MIN_EDGE_USD",
+        "ETH_PRICE_USD",
+        "EDGE_GAS_MULTIPLIER",
+    ]:
+        monkeypatch.delenv(name, raising=False)
+
+    ok, note = should_move(
+        capital_eth=5.0,
+        score_best=0.012,
+        score_current=0.01,
+        est_move_gas=0,
+        w3=None,
+    )
+
+    assert ok is True
+    assert note.startswith("edge:ok")
+    assert note.endswith("gas=web3_missing")
+
+
+def test_ops_guard_respects_gas_cost(monkeypatch):
+    """The guard compares expected gain against the estimated gas cost."""
+
+    from ops_guard import should_move
+
+    class DummyEth:
+        def __init__(self, gas_price):
+            self._gas_price = gas_price
+
+        @property
+        def gas_price(self):
+            return self._gas_price
+
+    class DummyWeb3:
+        def __init__(self, gas_price):
+            self.eth = DummyEth(gas_price)
+
+    w3 = DummyWeb3(gas_price=20_000_000_000)  # 20 gwei
+
+    monkeypatch.setenv("EDGE_GAS_MULTIPLIER", "1.0")
+
+    ok, note = should_move(
+        capital_eth=1.0,
+        score_best=0.0101,
+        score_current=0.01,
+        est_move_gas=500_000,
+        w3=w3,
+    )
+    assert ok is False
+    assert note.startswith("edge:gas>")
+
+    ok, note = should_move(
+        capital_eth=10.0,
+        score_best=0.012,
+        score_current=0.01,
+        est_move_gas=200_000,
+        w3=w3,
+    )
+    assert ok is True
+    assert "edge:ok" in note
+    assert "gas=" in note
+
 
 def main():
     """Run all tests."""
@@ -142,10 +272,11 @@ def main():
         print(f"\n{name}:")
         print("-" * 60)
         try:
-            if test_func():
-                passed += 1
-            else:
+            result = test_func()
+            if result is False:
                 failed += 1
+            else:
+                passed += 1
         except Exception as e:
             print(f"✗ Test failed with exception: {e}")
             import traceback

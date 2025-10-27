@@ -74,6 +74,36 @@ ERC4626_META_ABI = [
     },
 ]
 
+YEARN_META_ABI = [
+    {
+        "name": "token",
+        "outputs": [{"type": "address"}],
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
+COMET_META_ABI = [
+    {
+        "name": "baseToken",
+        "outputs": [{"type": "address"}],
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
+CTOKEN_META_ABI = [
+    {
+        "name": "underlying",
+        "outputs": [{"type": "address"}],
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
+
 
 def expand_env(value):
     if isinstance(value, str):
@@ -192,6 +222,93 @@ def check_aave(w3: Web3, label: str, cfg: dict) -> bool:
     return True
 
 
+def check_yearn(w3: Web3, label: str, cfg: dict) -> bool:
+    vault_addr = cfg.get("vault") or cfg.get("address")
+    if not vault_addr:
+        print(f"  !! Missing vault address for {label}")
+        return False
+
+    try:
+        vault = w3.eth.contract(address=Web3.to_checksum_address(vault_addr), abi=YEARN_META_ABI)
+        vault_token = vault.functions.token().call()
+    except Exception as exc:
+        print(f"  !! Unable to read Yearn vault metadata: {exc}")
+        return False
+
+    configured_asset = cfg.get("asset")
+    print(f"  vault={Web3.to_checksum_address(vault_addr)}")
+    print(f"  token()={vault_token}")
+    if configured_asset:
+        try:
+            checksum = Web3.to_checksum_address(configured_asset)
+        except Exception as exc:
+            print(f"  !! Invalid asset address: {exc}")
+            return False
+        print(f"  cfg.asset={checksum}")
+        if checksum.lower() != vault_token.lower():
+            print("  !! Configured asset does not match vault.token()")
+            return False
+    return True
+
+
+def check_comet(w3: Web3, label: str, cfg: dict) -> bool:
+    market_addr = cfg.get("market") or cfg.get("comet")
+    if not market_addr:
+        print(f"  !! Missing market/comet for {label}")
+        return False
+
+    try:
+        comet = w3.eth.contract(address=Web3.to_checksum_address(market_addr), abi=COMET_META_ABI)
+        base_token = comet.functions.baseToken().call()
+    except Exception as exc:
+        print(f"  !! Unable to read Comet metadata: {exc}")
+        return False
+
+    configured_asset = cfg.get("asset")
+    print(f"  market={Web3.to_checksum_address(market_addr)}")
+    print(f"  baseToken()={base_token}")
+    if configured_asset:
+        try:
+            checksum = Web3.to_checksum_address(configured_asset)
+        except Exception as exc:
+            print(f"  !! Invalid asset address: {exc}")
+            return False
+        print(f"  cfg.asset={checksum}")
+        if checksum.lower() != base_token.lower():
+            print("  !! Configured asset does not match comet.baseToken()")
+            return False
+    return True
+
+
+def check_ctoken(w3: Web3, label: str, cfg: dict) -> bool:
+    token_addr = cfg.get("ctoken") or cfg.get("token")
+    if not token_addr:
+        print(f"  Missing cToken address for {label}")
+        return False
+
+    try:
+        ctoken = w3.eth.contract(address=Web3.to_checksum_address(token_addr), abi=CTOKEN_META_ABI)
+        underlying = ctoken.functions.underlying().call()
+    except Exception as exc:
+        print(f"  !! Unable to read cToken metadata: {exc}")
+        return False
+
+    configured_asset = cfg.get("asset") or cfg.get("underlying")
+    print(f"  cToken={Web3.to_checksum_address(token_addr)}")
+    print(f"  underlying()={underlying}")
+    if configured_asset:
+        try:
+            checksum = Web3.to_checksum_address(configured_asset)
+        except Exception as exc:
+            print(f"  !! Invalid asset address: {exc}")
+            return False
+        print(f"  cfg.asset={checksum}")
+        if checksum.lower() != underlying.lower():
+            print("  !! Configured asset does not match cToken.underlying()")
+            return False
+    return True
+
+
 def main() -> int:
     if load_dotenv:
         load_dotenv()
@@ -220,6 +337,12 @@ def main() -> int:
                 print(f"  beefy_vault={cfg['beefy_vault']}")
                 print(f"  token0={cfg['token0']} | token1={cfg['token1']}")
                 print(f"  stable={cfg.get('stable', False)} | slippage_bps={cfg.get('slippage_bps', 0)}")
+        elif adapter_type == "yearn":
+            ok &= check_yearn(w3, key, cfg)
+        elif adapter_type == "comet":
+            ok &= check_comet(w3, key, cfg)
+        elif adapter_type == "ctoken":
+            ok &= check_ctoken(w3, key, cfg)
         else:
             print("  (no checker for this adapter type)")
 

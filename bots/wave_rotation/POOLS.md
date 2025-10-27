@@ -86,6 +86,29 @@ These pools use the ERC-4626 vault standard for various yield strategies.
 - **Asset**: USDC
 - **Description**: Vault strategy for USDC yield generation
 
+### 4. Yearn Vaults
+
+Yearn-style vaults that expose a deposit/withdraw interface similar to ERC20 tokens.
+
+#### `pool:base:yearn:USDC`
+- **Type**: Yearn Vault
+- **Asset**: USDC
+- **Description**: Deposita USDC in un vault Yearn su Base per rendimento attivo
+
+### 5. Additional Lending Markets (Compound / Moonwell)
+
+Markets basati su Compound v3 (Comet) e cTokens stile Compound v2.
+
+#### `pool:base:comet:USDC`
+- **Type**: Compound v3 (Comet)
+- **Asset**: USDC
+- **Description**: Fornisce USDC al mercato Comet per ottenere rendimento e ricompense
+
+#### `pool:base:moonwell:cbETH`
+- **Type**: Moonwell / Compound v2 cToken
+- **Asset**: cbETH
+- **Description**: Deposita cbETH nel mercato Moonwell per accumulare interessi a tasso variabile
+
 ## Configuration Requirements
 
 Each pool requires specific environment variables to be set:
@@ -112,6 +135,9 @@ Each Beefy and ERC-4626 pool requires its specific vault address:
 - `WETH_YIELD_VAULT_BASE`
 - `CBBTC_ERC4626_VAULT`
 - `USDC_ERC4626_VAULT`
+- `YEARN_USDC_VAULT_BASE`
+- `COMET_USDC_MARKET_BASE`
+- `MOONWELL_CBETH_CTOKEN`
 
 ## Pool Selection Strategy
 
@@ -139,13 +165,19 @@ Where:
 | Lending (Aave v3) | 4 | Stable lending yield on various assets |
 | LP Pairs (Beefy/Aero) | 5 | Liquidity provision + farming rewards |
 | ERC-4626 Vaults | 3 | Specialized yield strategies |
-| **Total** | **12** | Comprehensive coverage across DeFi sectors |
+| Yearn Vaults | 1 | Yield vault con strategia attiva su USDC |
+| Compound v3 (Comet) | 1 | Lending single-sided con collateral isolato |
+| Compound v2 (cToken/Moonwell) | 1 | Lending tradizionale con cToken |
+| **Total** | **15** | Copertura DeFi multi-protocollo |
 
 ## Adapter Types
 
 - **aave_v3**: Single-sided lending on Aave v3
 - **lp_beefy_aero**: Dual-sided LP provision on Aerodrome with Beefy farming
 - **erc4626**: Standard ERC-4626 vault deposits
+- **yearn**: Vault Yearn con interfaccia ERC20
+- **comet**: Mercati Compound v3 (Comet) single-asset
+- **ctoken**: Mercati Compound v2/Moonwell basati su cToken
 
 ## Notes
 

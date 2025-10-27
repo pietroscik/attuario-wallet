@@ -4,10 +4,12 @@ This guide explains how to configure and use the newly added pool configurations
 
 ## Overview
 
-The Wave Rotation strategy now supports 12 pools across 3 major DeFi categories:
+The Wave Rotation strategy now supports 15 pools across 5 major DeFi categories:
 - **4 Aave v3 Lending Pools**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP Pools**: USDC/cbBTC, USDC/USDT, WETH/USDC, cbETH/WETH, WETH/USDT
 - **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
+- **1 Yearn Vault**: Yearn USDC su Base
+- **2 Compound-based Lending Markets**: Comet USDC e Moonwell cbETH
 
 ## Quick Start
 
@@ -66,6 +68,13 @@ BEEFY_WETH_USDT_VAULT=
 WETH_YIELD_VAULT_BASE=
 CBBTC_ERC4626_VAULT=
 USDC_ERC4626_VAULT=
+
+# Yearn Vaults
+YEARN_USDC_VAULT_BASE=
+
+# Compound / Moonwell Markets
+COMET_USDC_MARKET_BASE=
+MOONWELL_CBETH_CTOKEN=
 ```
 
 ### 3. Find Vault Addresses
@@ -142,6 +151,23 @@ Standard vault interface for various yield strategies:
 
 **Advantages**: Professional strategy management, single token deposit
 **Disadvantages**: Strategy-dependent risk
+
+### Yearn Vaults
+
+Vault tradizionali Yearn con depositi single-sided:
+- `pool:base:yearn:USDC` - Vault Yearn su Base per USDC
+
+**Advantages**: Strategia attiva con auto-compounding
+**Disadvantages**: Dipendenza dalla gestione Yearn
+
+### Compound-based Lending (Comet & Moonwell)
+
+Mercati lending con interfaccia Compound v3/v2:
+- `pool:base:comet:USDC` - Mercato Comet per USDC
+- `pool:base:moonwell:cbETH` - Mercato Moonwell cToken per cbETH
+
+**Advantages**: Ulteriore diversificazione dei protocolli di lending
+**Disadvantages**: Rischi specifici dei mercati Compound (health factor, interessi variabili)
 
 ## How the Strategy Selects Pools
 

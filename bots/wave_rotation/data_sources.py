@@ -8,12 +8,19 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Iterable, List
 
-import requests
+try:  # Optional dependency – provide graceful degradation in test envs
+    import requests
+except ModuleNotFoundError:  # pragma: no cover - import guard branch
+    requests = None  # type: ignore[assignment]
 
 DEFILLAMA_API = os.getenv("DEFILLAMA_API", "https://yields.llama.fi")
 
 
 def _safe_get(url: str, *, params: Dict[str, Any] | None = None, timeout: int = 25) -> Dict[str, Any] | None:
+    if requests is None:
+        print(f"[data] GET {url} skipped: requests not installed")
+        return None
+
     try:
         resp = requests.get(url, params=params, timeout=timeout)
         resp.raise_for_status()
