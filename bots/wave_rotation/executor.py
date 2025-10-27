@@ -11,12 +11,18 @@ import time
 from pathlib import Path
 from typing import Tuple
 
-from web3 import Web3
+try:  # Optional dependency – keep module importable during tests
+    from web3 import Web3
+except ModuleNotFoundError:  # pragma: no cover - import guard branch
+    Web3 = None  # type: ignore[assignment]
 
 from adapters import get_adapter as get_explicit_adapter
 from auto_cache import get_cached, set_cached
 from auto_registry import pick_auto_adapter, probe_type
-from onchain import get_signer_context
+try:  # Optional dependency – onchain helpers require web3 + requests
+    from onchain import get_signer_context
+except ModuleNotFoundError:  # pragma: no cover - import guard branch
+    get_signer_context = None  # type: ignore[assignment]
 from ops_guard import gas_ceiling_ok, should_move
 
 
@@ -77,6 +83,9 @@ def _auto_adapter(
     w3,
     ttl_hours: float,
 ) -> tuple[object | None, str]:
+    if Web3 is None:
+        return None, "web3_missing"
+
     if not address or not isinstance(address, str) or not address.startswith("0x"):
         return None, "none"
     address = Web3.to_checksum_address(address)
@@ -144,6 +153,9 @@ def move_capital_smart(
     dry_run: bool = False,
 ) -> str:
     state = _load_state()
+
+    if Web3 is None or get_signer_context is None:
+        return "onchain_disabled"
 
     ctx = get_signer_context()
     if ctx is None:

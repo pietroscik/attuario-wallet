@@ -5,7 +5,7 @@ Implementare configurazioni pool aggiuntive per coprire tutti i principali setto
 
 ## Pool Implementati
 
-### Totale: 12 Pool su Base Chain
+### Totale: 15 Pool su Base Chain
 
 #### 1. Aave v3 Lending (4 pool)
 Protocollo di lending decentralizzato per guadagni stabili:
@@ -31,6 +31,17 @@ Vault standard per strategie di yield avanzate:
 - **pool:base:erc4626:cbBTC-vault**: Vault strategia BTC (nuovo)
 - **pool:base:erc4626:USDC-vault**: Vault strategia stablecoin (nuovo)
 
+#### 4. Yearn Vault (1 pool)
+Integrazione con vault Yearn compatibili ERC20:
+
+- **pool:base:yearn:USDC**: Vault Yearn USDC su Base (nuovo)
+
+#### 5. Lending non-custodial aggiuntivo (2 pool)
+Esposizione a protocolli Compound v3 e Moonwell/Compound v2:
+
+- **pool:base:comet:USDC**: Mercato Compound v3 (Comet) per USDC (nuovo)
+- **pool:base:moonwell:cbETH**: Mercato Moonwell cToken cbETH (nuovo)
+
 ## Copertura Settori DeFi
 
 ✅ **Stable/Stable**: USDC/USDT con matematica stable swap
@@ -38,7 +49,8 @@ Vault standard per strategie di yield avanzate:
 ✅ **DeFi Lending su BTC/stable**: cbBTC su Aave + USDC/cbBTC LP
 ✅ **Yield su WETH**: Vault dedicato per WETH
 ✅ **Pool ETH/stable**: WETH/USDC e WETH/USDT
-✅ **Posizioni lending**: USDC, cbBTC, cbETH su Aave v3
+✅ **Posizioni lending**: USDC, cbBTC, cbETH su Aave v3 + Comet + Moonwell
+✅ **Vault Yearn**: USDC Yearn vault su Base
 
 ## File Modificati/Creati
 
@@ -60,11 +72,14 @@ Vault standard per strategie di yield avanzate:
 ### test_pools.py
 ```
 ✓ Config loads successfully
-✓ 12 pool configurations validated
-✓ All adapter types valid (aave_v3, lp_beefy_aero, erc4626)
+✓ 15 pool configurations validated
+✓ All adapter types valid (aave_v3, lp_beefy_aero, erc4626, yearn, comet, ctoken)
 ✓ 4 Aave v3 lending pools
 ✓ 5 Beefy/Aerodrome LP pools
 ✓ 3 ERC-4626 vault pools
+✓ 1 Yearn vault pool
+✓ 1 Comet market
+✓ 1 cToken market
 ✓ 1 stable/stable pool (USDC/USDT)
 ✓ 2 LST pools (cbETH/WETH LP, cbETH lending)
 ✓ 2 ETH/stable pools (WETH/USDC, WETH/USDT)
@@ -80,20 +95,24 @@ Pool Summary by Type:
 - AAVE_V3: 4 pools
 - ERC4626: 3 pools
 - LP_BEEFY_AERO: 5 pools
+- YEARN: 1 pool
+- COMET: 1 pool
+- CTOKEN: 1 pool
 
-Status: 4/12 pools ready
-(8 pools need environment variables to be set)
+Status: 4/15 pools ready
+(11 pools need environment variables to be set)
 ```
 
 ## Adapter Compatibility
 
-Tutti i pool utilizzano adapter esistenti:
+Tutti i pool utilizzano adapter espliciti disponibili nel progetto:
 
 - **aave_v3**: adapter esistente in `adapters/aave_v3.py`
 - **lp_beefy_aero**: adapter esistente in `adapters/lp_beefy_aero.py`
 - **erc4626**: adapter esistente in `adapters/erc4626.py`
-
-Nessuna modifica agli adapter necessaria - solo nuove configurazioni.
+- **yearn**: nuovo adapter in `adapters/yearn.py`
+- **comet**: nuovo adapter in `adapters/comet.py`
+- **ctoken**: nuovo adapter in `adapters/ctoken.py`
 
 ## Variabili Ambiente Richieste
 
@@ -123,6 +142,13 @@ BEEFY_WETH_USDT_VAULT=
 WETH_YIELD_VAULT_BASE=
 CBBTC_ERC4626_VAULT=
 USDC_ERC4626_VAULT=
+
+# Yearn vaults
+YEARN_USDC_VAULT_BASE=
+
+# Compound / Moonwell markets
+COMET_USDC_MARKET_BASE=
+MOONWELL_CBETH_CTOKEN=
 ```
 
 ## Come Usare
@@ -150,7 +176,7 @@ python3 strategy.py
 ```
 
 La strategia automaticamente:
-- Valuta tutti i 12 pool configurati
+- Valuta tutti i 15 pool configurati
 - Calcola score per ciascuno
 - Seleziona il migliore
 - Effettua switch se score migliorato ≥1%

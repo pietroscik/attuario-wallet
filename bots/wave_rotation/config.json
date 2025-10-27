@@ -111,6 +111,21 @@
       "type": "erc4626",
       "vault": "${USDC_ERC4626_VAULT}",
       "asset": "${USDC_BASE}"
+    },
+    "pool:base:yearn:USDC": {
+      "type": "yearn",
+      "vault": "${YEARN_USDC_VAULT_BASE}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:comet:USDC": {
+      "type": "comet",
+      "market": "${COMET_USDC_MARKET_BASE}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:moonwell:cbETH": {
+      "type": "ctoken",
+      "ctoken": "${MOONWELL_CBETH_CTOKEN}",
+      "asset": "${CBETH_BASE}"
     }
   },
   "selection": {

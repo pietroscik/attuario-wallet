@@ -78,11 +78,13 @@ Per schedulare via cron/Gelato usa `scripts/run_daily.sh` (che carica `.env` e r
 
 ## Pool Configurati
 
-La strategia ora supporta **12 pool** su Base chain, coprendo tutti i principali settori DeFi:
+La strategia ora supporta **15 pool** su Base chain, coprendo tutti i principali settori DeFi:
 
 - **4 Aave v3 Lending**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP**: USDC/cbBTC, USDC/USDT (stable), WETH/USDC, cbETH/WETH (LST), WETH/USDT
 - **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
+- **1 Yearn Vault**: Yearn USDC su Base
+- **2 Mercati Compound-based**: Comet USDC (Compound v3) e Moonwell cbETH (cToken)
 
 Per configurare i nuovi pool:
 
@@ -95,6 +97,8 @@ Per configurare i nuovi pool:
    - Token addresses (USDT, cbETH, WETH)
    - Beefy vault addresses
    - ERC-4626 vault addresses
+   - Yearn vault addresses
+   - Mercati Compound (Comet) e Moonwell cToken
 
 3. **Documentazione completa**:
    - `POOLS.md` - Descrizione dettagliata di tutti i pool
@@ -131,11 +135,12 @@ Per configurare i nuovi pool:
 
 - Attiva l’automazione impostando `PORTFOLIO_AUTOMATION_ENABLED=true` nel `.env`.
 - Facoltativo: `PORTFOLIO_DRY_RUN=true` per simulare withdraw/deposit senza inviare transazioni (utile nei test).
-- Ad oggi è supportato l’adapter `erc4626` (deposito/withdraw “tutto”). Altri protocolli possono essere aggiunti estendendo `bots/wave_rotation/adapters/`.
+- Ad oggi sono supportati gli adapter espliciti `erc4626`, `aave_v3`, `lp_beefy_aero`, `yearn`, `comet` e `ctoken`. Altri protocolli possono essere aggiunti estendendo `bots/wave_rotation/adapters/`.
 - Se non esiste un adapter esplicito, il bot prova gli auto-adapter (ERC-4626, Beefy/Yearn, Compound v2/v3, Aave v3) con caching (`cache/auto_adapter_cache.json`). Se nessuno è compatibile, il pool viene saltato senza spese di gas.
 - Guardrail operativi (tutti opzionali, nel `.env`):
   - `GAS_PRICE_MAX_GWEI` per saltare i movimenti quando il gas supera la soglia.
-  - `MIN_EDGE_EUR`, `EDGE_HORIZON_H`, `FX_EUR_PER_ETH` per richiedere un vantaggio economico netto prima di spostare capitale.
+  - `MIN_EDGE_SCORE`, `MIN_EDGE_ETH`, `MIN_EDGE_USD` (+ `ETH_PRICE_USD`) per richiedere un delta di score minimo, un guadagno previsto in ETH o USD prima di muovere capitale.
+  - `EDGE_GAS_MULTIPLIER` per richiedere che il guadagno stimato superi il costo gas moltiplicato per il fattore indicato.
   - `SWITCH_COOLDOWN_S` per imporre un minimo intervallo tra due rotazioni effettive.
   - `ALLOWANCE_MODE=MAX|EXACT` controlla se impostare allowance infinita o puntuale sull’asset sottostante.
   - `MAX_WRAP_PCT` (default 0.8) limita la quota di ETH convertibile in WETH durante i depositi auto.

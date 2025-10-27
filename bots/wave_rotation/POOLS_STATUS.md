@@ -1,6 +1,6 @@
 # Pools Status and Execution Guide
 
-## ✅ Pools Ready to Execute (8/12)
+## ✅ Pools Ready to Execute (8/15)
 
 These pools are fully configured and can execute immediately:
 
@@ -14,7 +14,7 @@ These pools are fully configured and can execute immediately:
 5. **pool:base:erc4626:USDC-vault** - Morpho Yearn USDC vault ✅
    - Address: 0xef417a2512C5a41f69AE4e021648b69a7CdE5D03
 
-## ⏳ Pools Needing Beefy Vault Addresses (5/12)
+## ⏳ Pools Needing Beefy Vault Addresses (5/15)
 
 These pools are configured but need Beefy vault contract addresses:
 
@@ -25,10 +25,19 @@ These pools are configured but need Beefy vault contract addresses:
 9. **pool:base:beefy:cbETH-WETH** - Needs BEEFY_CBETH_WETH_VAULT (LST pair)
 10. **pool:base:beefy:WETH-USDT** - Needs BEEFY_WETH_USDT_VAULT
 
-## ⏳ Pools Needing ERC-4626 Vault Addresses (2/12)
+## ⏳ Pools Needing ERC-4626 Vault Addresses (2/15)
 
 11. **pool:base:erc4626:WETH-yield** - Needs WETH_YIELD_VAULT_BASE
 12. **pool:base:erc4626:cbBTC-vault** - Needs CBBTC_ERC4626_VAULT
+
+## ⏳ Pools Needing Yearn Vault Addresses (1/15)
+
+13. **pool:base:yearn:USDC** - Needs YEARN_USDC_VAULT_BASE
+
+## ⏳ Pools Needing Compound Market Addresses (2/15)
+
+14. **pool:base:comet:USDC** - Needs COMET_USDC_MARKET_BASE
+15. **pool:base:moonwell:cbETH** - Needs MOONWELL_CBETH_CTOKEN
 
 ## How to Find Missing Addresses
 
@@ -66,10 +75,12 @@ The workflow is configured with default values and will run automatically with:
 - All 4 Aave v3 pools ✅
 - 1 ERC-4626 pool (USDC) ✅
 - Beefy pools skipped if vault addresses not set
+- Yearn vault skipped if YEARN_USDC_VAULT_BASE not set
+- Compound pools skipped if COMET_USDC_MARKET_BASE / MOONWELL_CBETH_CTOKEN not set
 
-To add Beefy vaults:
+To add Beefy / Yearn / Compound addresses:
 1. Go to repository Settings → Environments → copilot
-2. Add variables/secrets for the missing vault addresses
+2. Add variables/secrets for the missing vault or market addresses
 3. Workflow will automatically include those pools
 
 ## Strategy Behavior
@@ -89,6 +100,8 @@ Even with just the 8 ready pools, we cover:
 - ⏳ **Stable/stable**: USDC/USDT (needs vault address)
 - ⏳ **LST**: cbETH/WETH (needs vault address)
 - ⏳ **ETH/stable**: WETH/USDC, WETH/USDT (need vault addresses)
+- ⏳ **Yearn vault**: USDC Yearn vault (needs vault address)
+- ⏳ **Compound markets**: Comet USDC / Moonwell cbETH (need market addresses)
 
 ## Auto-Populated Addresses
 
@@ -108,6 +121,6 @@ All token and protocol addresses are auto-populated in `.env.example` and GitHub
 
 ## Conclusion
 
-**The system is immediately operational with 8/12 pools!** 
+**The system is immediately operational with 8/15 pools!**
 
-The remaining 4 Beefy pool addresses can be added incrementally without breaking existing functionality. The strategy will work with whatever pools are configured.
+The remaining Beefy, Yearn and Compound addresses can be added incrementally without breaking existing functionality. The strategy will work with whatever pools are configured.

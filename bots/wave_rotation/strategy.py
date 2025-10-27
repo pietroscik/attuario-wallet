@@ -16,20 +16,19 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import time
-from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-import requests
+try:  # Optional dependency – allows tests to import without network libs
+    import requests
+except ModuleNotFoundError:  # pragma: no cover - import guard branch
+    requests = None  # type: ignore[assignment]
 from dotenv import load_dotenv
 
-from auto_cache import get_cached, set_cached
-from auto_registry import probe_type
 from data_sources import fetch_pools_scoped
 from executor import move_capital_smart, settle_day
 from logger import append_log, build_telegram_message, timestamp_now
@@ -40,7 +39,7 @@ from onchain import (
     get_available_capital_eth,
     get_signer_context,
 )
-from scoring import daily_rate, normalized_score, should_switch
+from scoring import daily_rate, should_switch
 from treasury import dispatch_treasury_payout
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -180,6 +179,10 @@ def send_telegram(msg: str, config: StrategyConfig) -> None:
     if not token or not chat_id:
         print("[telegram] skipped: token/chat_id missing")
         return
+    if requests is None:
+        print("[telegram] skipped: requests not installed")
+        return
+
     try:
         r = requests.get(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -192,219 +195,18 @@ def send_telegram(msg: str, config: StrategyConfig) -> None:
         print(f"[telegram] exception: {exc}")
 
 
-class AdapterInfo(NamedTuple):
-    ok: bool
-    source: str
-    adapter_type: Optional[str] = None
-
-
 def select_best_pool(
     pools: List[Dict[str, float]],
     config: StrategyConfig,
     state: StrategyState,
-    w3,
+    _w3,
     _capital_hint_eth: float,
 ) -> Tuple[Dict[str, object] | None, Dict[str, Dict[str, object]]]:
-    adapters_cfg = config.adapters or {}
-    selection_cfg = config.selection or {}
-    blacklist_projects = {
-        str(p).lower() for p in selection_cfg.get("blacklist_projects", []) if p
-    }
-
     def safe_float(value: object, default: float = 0.0) -> float:
         try:
             return float(value)
         except (TypeError, ValueError):
             return default
-
-    exclude_virtual = os.getenv("EXCLUDE_VIRTUAL", "0").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-    require_adapter = os.getenv("REQUIRE_ADAPTER_BEFORE_RANK", "0").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-    adapter_probe_relaxed = False
-    if require_adapter and w3 is None:
-        require_adapter = False
-        adapter_probe_relaxed = True
-
-    ttl_raw = os.getenv("ADAPTER_CACHE_TTL_H", "168")
-    try:
-        ttl_hours = float(ttl_raw)
-    except ValueError:
-        ttl_hours = 168.0
-
-    allow_builtin_adapters = os.getenv("ALLOW_BUILTIN_ADAPTERS", "true").strip().lower() not in {
-        "0",
-        "false",
-        "no",
-        "off",
-    }
-
-    explicit_pool_ids = set()
-    for key in adapters_cfg.keys():
-        if not isinstance(key, str):
-            continue
-        explicit_pool_ids.add(key)
-        if key.startswith("pool:"):
-            explicit_pool_ids.add(key[5:])
-
-    allow_external_pools = os.getenv("ALLOW_UNLISTED_POOLS", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-    builtin_adapter_hints = [
-        ("beefy", ("BEEFY", "beefy-auto")),
-        ("yearn", ("YEARN", "yearn-vault")),
-        ("sonne", ("CTOKEN", "compound-like")),
-        ("moonwell", ("CTOKEN", "compound-like")),
-        ("compound", ("CTOKEN", "compound")),
-        ("venus", ("CTOKEN", "compound-like")),
-        ("lodestar", ("CTOKEN", "compound-like")),
-        ("morpho", ("CTOKEN", "compound-like")),
-        ("comet", ("COMET", "compound-iii")),
-        ("exactly", ("ERC4626", "erc4626-vault")),
-        ("midas", ("ERC4626", "erc4626-vault")),
-        ("gearbox", ("ERC4626", "erc4626-vault")),
-        ("aave", ("AAVEV3", "aave-like")),
-        ("spark", ("AAVEV3", "aave-like")),
-        ("radiant", ("AAVEV3", "aave-like")),
-        ("geist", ("AAVEV3", "aave-like")),
-        ("benqi", ("AAVEV3", "aave-like")),
-    ]
-
-    adapter_meta: Dict[str, AdapterInfo] = {}
-
-    def _pool_meta_key(pool: Dict[str, object]) -> str:
-        pool_id = str(pool.get("pool_id") or "").strip()
-        if pool_id:
-            return pool_id
-        address = str(pool.get("address") or "").strip().lower()
-        if address:
-            return f"addr:{address}"
-        project = str(pool.get("project") or "").strip().lower()
-        chain = str(pool.get("chain") or "").strip().lower()
-        if project and chain:
-            return f"{chain}:{project}:{id(pool)}"
-        return f"pool:{id(pool)}"
-
-    def resolve_adapter(pool: Dict[str, object], *, require_probe: bool) -> AdapterInfo:
-        key = _pool_meta_key(pool)
-        cached_local = adapter_meta.get(key)
-        if cached_local and (cached_local.ok or not require_probe):
-            return cached_local
-
-        pool_id = str(pool.get("pool_id") or "").strip()
-        project = str(pool.get("project") or "").strip().lower()
-        chain = str(pool.get("chain") or "").strip().lower()
-        address = str(pool.get("address") or "").strip()
-
-        config_keys = []
-        if pool_id:
-            config_keys.extend([pool_id, f"pool:{pool_id}"])
-        if address:
-            address_lower = address.lower()
-            config_keys.extend([address_lower, f"address:{address_lower}"])
-        if project:
-            config_keys.extend([project, f"project:{project}"])
-        if chain and project:
-            config_keys.extend([f"{chain}:{project}", f"project:{project}@{chain}"])
-
-        for cfg_key in config_keys:
-            if not cfg_key:
-                continue
-            if cfg_key in adapters_cfg:
-                adapter_hint = adapters_cfg[cfg_key]
-                if isinstance(adapter_hint, dict):
-                    adapter_type = adapter_hint.get("type") or adapter_hint.get("adapter")
-                    tag = adapter_hint.get("source") or adapter_hint.get("label") or "config"
-                elif isinstance(adapter_hint, str):
-                    adapter_type = adapter_hint
-                    tag = adapter_hint
-                elif adapter_hint:
-                    adapter_type = str(adapter_hint)
-                    tag = "config"
-                else:
-                    adapter_type = None
-                    tag = "config"
-                info = AdapterInfo(True, f"config:{tag}", adapter_type if adapter_type else None)
-                adapter_meta[key] = info
-                return info
-
-        if allow_builtin_adapters:
-            normalized_project = re.sub(r"[^a-z0-9]+", "", project)
-            for hint, (adapter_type, label) in builtin_adapter_hints:
-                if hint in normalized_project:
-                    info = AdapterInfo(True, f"builtin:{label}", adapter_type)
-                    adapter_meta[key] = info
-                    cache_key = None
-                    if pool_id and address:
-                        cache_key = f"{pool_id}:{address.lower()}"
-                    elif address:
-                        cache_key = address.lower()
-                    elif pool_id:
-                        cache_key = pool_id
-                    if cache_key:
-                        set_cached(cache_key, adapter_type, reason=info.source)
-                    return info
-
-        cache_key = None
-        if pool_id and address:
-            cache_key = f"{pool_id}:{address.lower()}"
-        elif address:
-            cache_key = address.lower()
-        elif pool_id:
-            cache_key = pool_id
-
-        if cache_key:
-            cached = get_cached(cache_key, ttl_hours)
-            if cached:
-                adapter_type = cached.get("type")
-                reason = cached.get("reason") or "cache"
-                if adapter_type and adapter_type != "none":
-                    info = AdapterInfo(True, reason, adapter_type)
-                    adapter_meta[key] = info
-                    return info
-                if not require_probe:
-                    info = AdapterInfo(False, reason, None)
-                    adapter_meta[key] = info
-                    return info
-
-        if not address or not address.startswith("0x"):
-            info = AdapterInfo(False, "missing_address", None)
-            adapter_meta[key] = info
-            return info
-
-        if not w3:
-            info = AdapterInfo(False, "no_web3", None)
-            adapter_meta[key] = info
-            return info
-
-        ok, adapter_type, _ = probe_type(w3, address)
-        info: AdapterInfo
-        if ok:
-            info = AdapterInfo(True, f"probe:{adapter_type}", adapter_type)
-            if cache_key:
-                set_cached(cache_key, adapter_type, reason=info.source)
-        else:
-            info = AdapterInfo(False, "probe:none", None)
-            if cache_key:
-                set_cached(cache_key, None, reason=info.source)
-        adapter_meta[key] = info
-        return info
-
-    def is_virtual(pool: Dict[str, object]) -> bool:
-        symbol = str(pool.get("symbol") or "").upper()
-        name = str(pool.get("name") or "").upper()
-        pool_id = str(pool.get("pool_id") or "").lower()
-        return symbol.startswith("VIRTUAL") or "VIRTUAL" in name or "virtual" in pool_id
 
     def pool_tvl(pool: Dict[str, object]) -> float:
         value = pool.get("tvl_usd")
@@ -415,269 +217,67 @@ def select_best_pool(
         except (TypeError, ValueError):
             return 0.0
 
-    def pool_staleness(pool: Dict[str, object]) -> float:
-        for key in ("apy_age_min", "apyAgeMin", "updatedMin"):
-            value = pool.get(key)
-            if value is not None:
-                try:
-                    return float(value)
-                except (TypeError, ValueError):
-                    continue
-        return 0.0
-
-    def pool_age(pool: Dict[str, object]) -> float:
-        for key in ("poolAgeDays", "pool_age_days"):
-            value = pool.get(key)
-            if value is not None:
-                try:
-                    return float(value)
-                except (TypeError, ValueError):
-                    continue
-        return 0.0
-
-    candidates: List[Dict[str, object]] = []
-    base_pool_set: List[Dict[str, object]] = []
-    base_relaxed = False
-
-    # Apply selection filters from config
-    for pool in pools:
-        project = str(pool.get("project") or "").lower()
-        if project and project in blacklist_projects:
-            continue
-
-        # Check virtual tokens
-        if exclude_virtual and is_virtual(pool):
-            continue
-
-        pool_id_value = str(pool.get("pool_id") or "").strip()
-        if not allow_external_pools and explicit_pool_ids and pool_id_value not in explicit_pool_ids:
-            continue
-
-        base_pool_set.append(pool)
-
-    if not base_pool_set and pools:
-        base_pool_set = list(pools)
-        base_relaxed = True
-
-    survivors: List[Dict[str, object]] = list(base_pool_set)
-    filter_report: Dict[str, List[Dict[str, object]]] = {
-        "applied": [],
-        "skipped": [],
-    }
-    if adapter_probe_relaxed:
-        filter_report.setdefault("relaxed", []).append("adapter_probe_no_web3")
-
-    if base_relaxed:
-        filter_report.setdefault("relaxed", []).append("prefilter")
-
-    def apply_filter(tag: str, predicate):
-        nonlocal survivors
-        if not survivors:
-            return
-
-        filtered: List[Dict[str, object]] = []
-        rejected_reasons: Counter[str] = Counter()
-
-        for pool in survivors:
-            keep, reason = predicate(pool)
-            if keep:
-                filtered.append(pool)
-            else:
-                if reason:
-                    rejected_reasons[reason] += 1
-
-        if filtered:
-            survivors = filtered
-            filter_report["applied"].append(
-                {
-                    "filter": tag,
-                    "remaining": len(filtered),
-                    "rejections": dict(rejected_reasons),
-                }
-            )
-        else:
-            filter_report["skipped"].append(
-                {
-                    "filter": tag,
-                    "reason": dict(rejected_reasons) or {"cause": "all_rejected"},
-                }
-            )
-
-    def adapter_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
-        info = resolve_adapter(pool, require_probe=require_adapter)
-        if info.ok or not require_adapter:
-            return True, ""
-        reason = info.source or "no_adapter"
-        return False, reason
-
-    apply_filter("adapter", adapter_predicate)
-
     min_tvl = float(config.min_tvl_usd)
+    candidates: List[Dict[str, object]] = []
+    lookup: Dict[str, Dict[str, object]] = {}
+    diagnostics: List[str] = []
 
-    def tvl_predicate(pool: Dict[str, object]) -> Tuple[bool, str]:
-        value = pool_tvl(pool)
-        if value >= min_tvl:
-            return True, ""
-        return False, "tvl<min"
-
-    apply_filter("tvl", tvl_predicate)
-
-    if not survivors:
-        survivors = list(base_pool_set)
-        filter_report["skipped"].append(
-            {
-                "filter": "fallback",
-                "reason": "no_survivors_after_filters",
-            }
-        )
-
-    if filter_report["skipped"]:
-        details: List[str] = []
-        for item in filter_report["skipped"]:
-            reason = item.get("reason")
-            if isinstance(reason, dict):
-                reason_desc = ",".join(f"{k}:{v}" for k, v in reason.items())
+    for idx, pool in enumerate(pools):
+        pool_id = str(pool.get("pool_id") or "").strip()
+        if not pool_id:
+            address = str(pool.get("address") or "").strip().lower()
+            if address:
+                pool_id = f"addr:{address}"
             else:
-                reason_desc = str(reason)
-            details.append(f"{item['filter']}->{reason_desc}")
-        if details:
-            print(f"[select] filtri allentati: {'; '.join(details)}")
+                chain = str(pool.get("chain") or "unknown").lower()
+                project = str(pool.get("project") or "unknown").lower()
+                pool_id = f"{chain}:{project}:{idx}"
 
-    for pool in survivors:
-        apy = max(0.0, safe_float(pool.get("apy"), 0.0))
+        apy = safe_float(pool.get("apy"), 0.0)
         r_day = daily_rate(apy)
-
-        # CRITICAL FIX: Convert annual fee to daily fee before subtracting
-        # fee_pct is annual, need to scale to daily: annual_fee / 365
-        cost_annual = max(0.0, safe_float(pool.get("fee_pct"), 0.0))
-        cost_daily = cost_annual / 365.0
-
-        risk = max(0.0, min(1.0, safe_float(pool.get("risk_score", 0.0), 0.0)))
-        # Use daily cost in score calculation
-        s = r_day / (1.0 + cost_daily * (1.0 - risk)) if r_day > 0 else r_day
-        r_net = r_day - cost_daily
-
-        adapter_info = resolve_adapter(pool, require_probe=False)
-
+        cost = max(0.0, safe_float(pool.get("fee_pct"), 0.0))
+        risk = max(0.0, min(1.0, safe_float(pool.get("risk_score"), 0.0)))
+        denominator = 1.0 + cost * (1.0 - risk)
+        score = r_day / denominator if denominator > 0 else 0.0
+        r_net = r_day - cost
         tvl_value = pool_tvl(pool)
-        staleness_value = pool_staleness(pool)
-        age_value = pool_age(pool)
 
         candidate = dict(pool)
         candidate.update(
             {
+                "pool_id": pool_id,
                 "apy": apy,
                 "r_day": r_day,
                 "r_net": r_net,
-                "score": s,
-                "cost_daily": cost_daily,
-                "cost_annual": cost_annual,
-                "adapter_ok": adapter_info.ok,
+                "score": score,
+                "cost": cost,
+                "risk_score": risk,
                 "tvl_usd": tvl_value,
-                "apy_age_min": staleness_value,
-                "pool_age_days": age_value,
             }
         )
-        if adapter_info.ok and adapter_info.source:
-            candidate["adapter_source"] = adapter_info.source
-        if adapter_info.adapter_type:
-            candidate["adapter_type"] = adapter_info.adapter_type
-        candidates.append(candidate)
 
-    relaxed_notes: List[str] = []
+        lookup[pool_id] = candidate
 
-    if not candidates and pools:
-        for pool in pools:
-            apy = max(0.0, safe_float(pool.get("apy"), 0.0))
-            r_day = daily_rate(apy)
-            cost_annual = max(0.0, safe_float(pool.get("fee_pct"), 0.0))
-            cost_daily = cost_annual / 365.0
-            risk = max(0.0, min(1.0, safe_float(pool.get("risk_score", 0.0), 0.0)))
-            s = r_day / (1.0 + cost_daily * (1.0 - risk)) if r_day > 0 else r_day
-            r_net = r_day - cost_daily
-            adapter_info = resolve_adapter(pool, require_probe=False)
-            candidate = dict(pool)
-            candidate.update(
-                {
-                    "apy": apy,
-                    "r_day": r_day,
-                    "r_net": r_net,
-                    "score": s,
-                    "cost_daily": cost_daily,
-                    "cost_annual": cost_annual,
-                    "adapter_ok": adapter_info.ok,
-                    "tvl_usd": pool_tvl(pool),
-                    "apy_age_min": pool_staleness(pool),
-                    "pool_age_days": pool_age(pool),
-                }
-            )
-            if adapter_info.ok and adapter_info.source:
-                candidate["adapter_source"] = adapter_info.source
-            if adapter_info.adapter_type:
-                candidate["adapter_type"] = adapter_info.adapter_type
+        if tvl_value >= min_tvl:
             candidates.append(candidate)
-        if candidates:
-            relaxed_notes.append("raw_pool")
+        else:
+            diagnostics.append(f"{pool_id or '?'}@{pool.get('chain', '?')}:tvl<{min_tvl:.0f}")
 
     if not candidates:
-        top_n = int(selection_cfg.get("top_n_scan", int(os.getenv("AUTO_TOP_N", "40")) or 40))
-        diagnostics: List[str] = []
-        for pool in sorted(pools, key=lambda x: safe_float(x.get("apy"), 0.0), reverse=True)[:top_n]:
-            reasons: List[str] = []
-            project = str(pool.get("project") or "").lower()
-            if project and project in blacklist_projects:
-                reasons.append("blacklist")
-            if exclude_virtual and is_virtual(pool):
-                reasons.append("virtual")
-            if require_adapter:
-                adapter_info = resolve_adapter(pool, require_probe=require_adapter)
-                if not adapter_info.ok:
-                    reasons.append(adapter_info.source or "no_adapter")
-            if safe_float(pool.get("tvl_usd"), 0.0) < config.min_tvl_usd:
-                reasons.append("tvl<min")
-            if not reasons:
-                reasons.append("other_filters")
-            diagnostics.append(f"{pool.get('pool_id','?')}@{pool.get('chain','?')}:" + ",".join(reasons))
-            if len(diagnostics) >= 10:
-                break
         if diagnostics:
-            print("[select] nessun candidato: ", "; ".join(diagnostics))
-        return None, {"__diagnostics__": diagnostics}
+            lookup["__diagnostics__"] = diagnostics
+        return None, lookup
 
-    ranking_candidates = sorted(candidates, key=lambda x: x["score"], reverse=True)
+    ranking = sorted(candidates, key=lambda item: item["score"], reverse=True)
+    best = ranking[0]
 
-    adapter_focused = ranking_candidates
-    if require_adapter:
-        adapter_ready = [c for c in ranking_candidates if c.get("adapter_ok")]
-        if adapter_ready:
-            adapter_focused = adapter_ready
-        else:
-            relaxed_notes.append("adapter")
-
-    tvl_ready = [c for c in adapter_focused if safe_float(c.get("tvl_usd"), 0.0) >= min_tvl]
-    if tvl_ready:
-        adapter_focused = tvl_ready
-    elif min_tvl > 0:
-        relaxed_notes.append("tvl")
-
-    ranking_candidates = sorted(adapter_focused, key=lambda x: x["score"], reverse=True)
-    best = ranking_candidates[0]
-
-    lookup = {c["pool_id"]: c for c in candidates}
-    lookup["__filter_report__"] = filter_report
-    if relaxed_notes:
-        filter_report.setdefault("relaxed", []).extend(relaxed_notes)
-        lookup["__relaxed__"] = relaxed_notes
     current = lookup.get(state.pool_id) if state.pool_id else None
-
     min_delta = float(config.delta_switch)
-    cooldown_s = int(selection_cfg.get("switch_cooldown_s", 0) or 0)
 
-    if should_switch(best, current, min_delta=min_delta, cooldown_s=cooldown_s, last_switch_ts=state.last_switch_ts):
+    if should_switch(best, current, min_delta=min_delta, last_switch_ts=state.last_switch_ts):
         return best, lookup
 
     return current or best, lookup
-
 
 def push_onchain(selected: Dict[str, object], capital_token: float) -> Optional[str]:
     pool_name = selected["name"]
@@ -694,9 +294,9 @@ def main() -> None:
     state = StrategyState.load(STATE_FILE)
     interval_seconds_env = os.getenv("WAVE_LOOP_INTERVAL_SECONDS")
     try:
-        interval_seconds = int(interval_seconds_env) if interval_seconds_env else 3600
+        interval_seconds = int(interval_seconds_env) if interval_seconds_env else 300
     except ValueError:
-        interval_seconds = 3600
+        interval_seconds = 300
     interval_seconds = max(300, interval_seconds)
     if interval_seconds % 3600 == 0:
         hours = interval_seconds // 3600
