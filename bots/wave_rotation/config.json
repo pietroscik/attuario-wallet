@@ -1,15 +1,24 @@
 {
-  "chains": ["base", "arbitrum", "polygon", "solana"],
+  "chains": [
+    "base",
+    "arbitrum",
+    "polygon",
+    "solana"
+  ],
   "min_tvl_usd": 100000,
   "delta_switch": 0.01,
   "reinvest_ratio": 0.5,
   "treasury_token": "USDC",
   "schedule_utc": "07:00",
-  "stop_loss_daily": -0.10,
+  "stop_loss_daily": -0.1,
   "take_profit_daily": 0.05,
   "sources": {
     "defillama": true,
-    "protocol_apis": ["aerodrome", "velodrome", "kamino"]
+    "protocol_apis": [
+      "aerodrome",
+      "velodrome",
+      "kamino"
+    ]
   },
   "vault": {
     "address": "0x0000000000000000000000000000000000000000",
@@ -29,19 +38,13 @@
       "decimals": 18,
       "weth_gateway": "${AAVE_WETH_GATEWAY_8453}"
     },
-    "pool:base:beefy:CLANKER-WETH": {
+    "pool:base:beefy:USDC-cbBTC": {
       "type": "lp_beefy_aero",
-      "beefy_vault": "${BEEFY_CLANKER_WETH_VAULT}",
       "router": "${AERODROME_ROUTER_8453}",
-      "token0": "${CLANKER_TOKEN_ADDRESS}",
-      "token1": "${WETH_TOKEN_ADDRESS}",
-      "slippage_bps": "${LP_SLIPPAGE_BPS}"
-    },
-    "pool:base:erc4626:custom": {
-      "type": "erc4626",
-      "vault": "${ERC4626_VAULT_ADDRESS}",
-      "asset": "${ERC4626_UNDERLYING_ADDRESS}",
-      "decimals": "${ERC4626_DECIMALS}"
+      "beefy_vault": "${BEEFY_USDC_CBBTC_VAULT}",
+      "token0": "${USDC_BASE}",
+      "token1": "${CBBTC_BASE}",
+      "slippage_bps": 50
     }
   },
   "selection": {

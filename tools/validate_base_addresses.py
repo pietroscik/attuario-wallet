@@ -11,6 +11,11 @@ from typing import Optional
 
 from web3 import HTTPProvider, Web3
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency
+    load_dotenv = None
+
 
 ERC20_ABI = [
     {
@@ -101,6 +106,8 @@ def _gateway_pool(w3: Web3, address: str) -> Optional[str]:
 
 
 def main() -> int:
+    if load_dotenv:
+        load_dotenv()
     w3 = _get_web3()
 
     checks: list[tuple[str, str]] = []
