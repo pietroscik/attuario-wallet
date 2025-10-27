@@ -38,6 +38,24 @@
       "decimals": 18,
       "weth_gateway": "${AAVE_WETH_GATEWAY_8453}"
     },
+    "pool:base:aave-v3:USDC": {
+      "type": "aave_v3",
+      "pool": "${AAVE_POOL_ADDRESS_8453}",
+      "asset": "${USDC_BASE}",
+      "decimals": 6
+    },
+    "pool:base:aave-v3:cbBTC": {
+      "type": "aave_v3",
+      "pool": "${AAVE_POOL_ADDRESS_8453}",
+      "asset": "${CBBTC_BASE}",
+      "decimals": 8
+    },
+    "pool:base:aave-v3:cbETH": {
+      "type": "aave_v3",
+      "pool": "${AAVE_POOL_ADDRESS_8453}",
+      "asset": "${CBETH_BASE}",
+      "decimals": 18
+    },
     "pool:base:beefy:USDC-cbBTC": {
       "type": "lp_beefy_aero",
       "router": "${AERODROME_ROUTER_8453}",
@@ -45,6 +63,54 @@
       "token0": "${USDC_BASE}",
       "token1": "${CBBTC_BASE}",
       "slippage_bps": 50
+    },
+    "pool:base:beefy:USDC-USDT": {
+      "type": "lp_beefy_aero",
+      "router": "${AERODROME_ROUTER_8453}",
+      "beefy_vault": "${BEEFY_USDC_USDT_VAULT}",
+      "token0": "${USDC_BASE}",
+      "token1": "${USDT_BASE}",
+      "stable": true,
+      "slippage_bps": 30
+    },
+    "pool:base:beefy:WETH-USDC": {
+      "type": "lp_beefy_aero",
+      "router": "${AERODROME_ROUTER_8453}",
+      "beefy_vault": "${BEEFY_WETH_USDC_VAULT}",
+      "token0": "${WETH_TOKEN_ADDRESS}",
+      "token1": "${USDC_BASE}",
+      "slippage_bps": 50
+    },
+    "pool:base:beefy:cbETH-WETH": {
+      "type": "lp_beefy_aero",
+      "router": "${AERODROME_ROUTER_8453}",
+      "beefy_vault": "${BEEFY_CBETH_WETH_VAULT}",
+      "token0": "${CBETH_BASE}",
+      "token1": "${WETH_TOKEN_ADDRESS}",
+      "slippage_bps": 50
+    },
+    "pool:base:beefy:WETH-USDT": {
+      "type": "lp_beefy_aero",
+      "router": "${AERODROME_ROUTER_8453}",
+      "beefy_vault": "${BEEFY_WETH_USDT_VAULT}",
+      "token0": "${WETH_TOKEN_ADDRESS}",
+      "token1": "${USDT_BASE}",
+      "slippage_bps": 50
+    },
+    "pool:base:erc4626:stETH-yield": {
+      "type": "erc4626",
+      "vault": "${STETH_YIELD_VAULT_BASE}",
+      "asset": "${WSTETH_BASE}"
+    },
+    "pool:base:erc4626:cbBTC-vault": {
+      "type": "erc4626",
+      "vault": "${CBBTC_ERC4626_VAULT}",
+      "asset": "${CBBTC_BASE}"
+    },
+    "pool:base:erc4626:USDC-vault": {
+      "type": "erc4626",
+      "vault": "${USDC_ERC4626_VAULT}",
+      "asset": "${USDC_BASE}"
     }
   },
   "selection": {

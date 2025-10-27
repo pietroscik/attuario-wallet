@@ -76,17 +76,55 @@ Per schedulare via cron/Gelato usa `scripts/run_daily.sh` (che carica `.env` e r
 - Quando il profitto giornaliero è positivo, il bot prova a swappare il 50% (quota treasury) da ETH → EURC tramite 0x Base API e trasferisce l’EURC all’indirizzo treasury.
 - Se la funzione è disabilitata (variabili mancanti) la regola 50/50 resta simulata come prima e nel log compare `treasury:disabled`.
 
+## Pool Configurati
+
+La strategia ora supporta **12 pool** su Base chain, coprendo tutti i principali settori DeFi:
+
+- **4 Aave v3 Lending**: WETH, USDC, cbBTC, cbETH
+- **5 Beefy/Aerodrome LP**: USDC/cbBTC, USDC/USDT (stable), WETH/USDC, cbETH/WETH (LST), WETH/USDT
+- **3 ERC-4626 Vaults**: stETH yield, cbBTC vault, USDC vault
+
+Per configurare i nuovi pool:
+
+1. **Verifica configurazione**:
+   ```bash
+   python3 validate_pools.py
+   ```
+
+2. **Imposta indirizzi mancanti** nel `.env` (vedi `.env.example` per la lista completa):
+   - Token addresses (USDT, cbETH, wstETH)
+   - Beefy vault addresses
+   - ERC-4626 vault addresses
+
+3. **Documentazione completa**:
+   - `POOLS.md` - Descrizione dettagliata di tutti i pool
+   - `POOL_SETUP.md` - Guida passo-passo alla configurazione
+
+4. **Test configurazione**:
+   ```bash
+   python3 test_pools.py
+   ```
+
 ## Allocazione automatica verso i pool
 
 - Definisci nel `config.json` la sezione `adapters` con la mappatura `pool_id → adapter`.
 
   ```json
   "adapters": {
-    "base:beefy:weth": {
-      "type": "erc4626",
-      "vault": "0x...",        // indirizzo vault ERC-4626
-      "asset": "0x...",        // asset sottostante detenuto nel wallet
-      "decimals": 18
+    "pool:base:aave-v3:USDC": {
+      "type": "aave_v3",
+      "pool": "${AAVE_POOL_ADDRESS_8453}",
+      "asset": "${USDC_BASE}",
+      "decimals": 6
+    },
+    "pool:base:beefy:USDC-USDT": {
+      "type": "lp_beefy_aero",
+      "router": "${AERODROME_ROUTER_8453}",
+      "beefy_vault": "${BEEFY_USDC_USDT_VAULT}",
+      "token0": "${USDC_BASE}",
+      "token1": "${USDT_BASE}",
+      "stable": true,
+      "slippage_bps": 30
     }
   }
   ```
