@@ -82,7 +82,8 @@ La strategia ora supporta **21 pool** su Base chain, coprendo tutti i principali
 
 - **4 Aave v3 Lending**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP**: USDC/cbBTC, USDC/USDT (stable), WETH/USDC, cbETH/WETH (LST), WETH/USDT
-- **5 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault, Morpho USDC, Morpho WETH
+- **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
+- **2 Morpho Blue Vaults**: Morpho USDC, Morpho WETH (ERC-4626 compatibili)
 - **2 Yearn Vaults**: Yearn USDC e WETH su Base
 - **2 Compound V3 (Comet)**: USDC market e USDbC market
 - **3 Moonwell (Compound V2 fork)**: cbETH, WETH, USDC cTokens
@@ -185,13 +186,13 @@ Per configurare i pool:
 Il sistema ora supporta **8 tipi di adapter automatici** e **6 adapter espliciti**, coprendo i principali protocolli DeFi:
 
 ### Protocolli Supportati:
-- ✅ Aave V3 - Lending decentralizzato  
-- ✅ Morpho Blue - Lending ottimizzato
-- ✅ Compound V3 (Comet) - Lending algoritmico
-- ✅ Moonwell - Compound V2 fork
-- ✅ Sonne Finance - Lending su Optimism
-- ✅ Yearn Finance - Yield aggregation
-- ✅ Beefy Finance - Auto-compounding
-- ✅ ERC-4626 Standard - Vaults compatibili
+- ✅ Aave V3 - Lending decentralizzato (Base)
+- ✅ Morpho Blue - Lending ottimizzato (Base)
+- ✅ Compound V3 (Comet) - Lending algoritmico (Base)
+- ✅ Moonwell - Compound V2 fork (Base)
+- ✅ Sonne Finance - Lending (supporto Optimism via adapter, non attivo su Base)
+- ✅ Yearn Finance - Yield aggregation (Base)
+- ✅ Beefy Finance - Auto-compounding (Base)
+- ✅ ERC-4626 Standard - Vaults compatibili (Base)
 
 Consulta `ADAPTER_COVERAGE.md` per la documentazione completa degli adapter.
