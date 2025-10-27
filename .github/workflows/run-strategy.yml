@@ -1,0 +1,38 @@
+name: Run Strategy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-strategy:
+    runs-on: ubuntu-latest
+    environment: copilot
+    env:
+      RPC_URL: ${{ secrets.RPC_URL }}
+      RPC_FALLBACKS: ${{ secrets.RPC_FALLBACKS }}
+      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+      VAULT_ADDRESS: ${{ secrets.VAULT_ADDRESS }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHATID: ${{ secrets.TELEGRAM_CHATID }}
+      ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+      AAVE_POOL_ADDRESS_8453: ${{ secrets.AAVE_POOL_ADDRESS_8453 }}
+      AAVE_WETH_GATEWAY_8453: ${{ secrets.AAVE_WETH_GATEWAY_8453 }}
+      AERODROME_ROUTER_8453: ${{ secrets.AERODROME_ROUTER_8453 }}
+      BEEFY_USDC_CBBTC_VAULT: ${{ secrets.BEEFY_USDC_CBBTC_VAULT }}
+      WETH_TOKEN_ADDRESS: ${{ secrets.WETH_TOKEN_ADDRESS }}
+      USDC_BASE: ${{ secrets.USDC_BASE }}
+      CBBTC_BASE: ${{ secrets.CBBTC_BASE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r bots/wave_rotation/requirements.txt
+
+      - name: Run strategy
+        run: python bots/wave_rotation/strategy.py
