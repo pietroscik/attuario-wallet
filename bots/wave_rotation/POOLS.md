@@ -71,10 +71,10 @@ These pools provide liquidity on Aerodrome DEX and stake the LP tokens in Beefy 
 
 These pools use the ERC-4626 vault standard for various yield strategies.
 
-#### `pool:base:erc4626:stETH-yield`
+#### `pool:base:erc4626:WETH-yield`
 - **Type**: ERC-4626 Vault
-- **Asset**: wstETH (Wrapped staked ETH)
-- **Description**: Yield-bearing vault for stETH staking rewards
+- **Asset**: WETH
+- **Description**: Yield-bearing vault per accumulare rendimento su WETH tramite Morpho × Yearn
 
 #### `pool:base:erc4626:cbBTC-vault`
 - **Type**: ERC-4626 Vault
@@ -109,7 +109,7 @@ Each Beefy and ERC-4626 pool requires its specific vault address:
 - `BEEFY_WETH_USDC_VAULT`
 - `BEEFY_CBETH_WETH_VAULT`
 - `BEEFY_WETH_USDT_VAULT`
-- `STETH_YIELD_VAULT_BASE`
+- `WETH_YIELD_VAULT_BASE`
 - `CBBTC_ERC4626_VAULT`
 - `USDC_ERC4626_VAULT`
 

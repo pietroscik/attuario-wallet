@@ -41,11 +41,11 @@ These need to be found on https://app.beefy.com/ for Base network:
 - `BEEFY_WETH_USDT_VAULT` - Beefy vault for WETH/USDT LP
 
 ### ERC-4626 Vault Addresses on Base
-These depend on which protocols you choose to use:
+Questi indirizzi dipendono dai protocolli che intendi usare:
 
-- `STETH_YIELD_VAULT_BASE` - ERC-4626 vault for stETH yield strategy
-- `CBBTC_ERC4626_VAULT` - ERC-4626 vault for cbBTC strategy
-- `USDC_ERC4626_VAULT` - ERC-4626 vault for USDC strategy
+- `WETH_YIELD_VAULT_BASE` - Vault ERC-4626 per la strategia WETH (Morpho × Yearn)
+- `CBBTC_ERC4626_VAULT` - Vault ERC-4626 per la strategia cbBTC
+- `USDC_ERC4626_VAULT` - Vault ERC-4626 per la strategia USDC
 
 ## Finding Vault Addresses
 
@@ -79,7 +79,7 @@ After setting all secrets, the following pools will be available:
 - `pool:base:beefy:WETH-USDC` - Needs BEEFY_WETH_USDC_VAULT
 - `pool:base:beefy:cbETH-WETH` - Needs BEEFY_CBETH_WETH_VAULT + CBETH_BASE
 - `pool:base:beefy:WETH-USDT` - Needs BEEFY_WETH_USDT_VAULT + USDT_BASE
-- `pool:base:erc4626:stETH-yield` - Needs STETH_YIELD_VAULT_BASE + WSTETH_BASE
+- `pool:base:erc4626:WETH-yield` - Needs WETH_YIELD_VAULT_BASE
 - `pool:base:erc4626:cbBTC-vault` - Needs CBBTC_ERC4626_VAULT
 - `pool:base:erc4626:USDC-vault` - Needs USDC_ERC4626_VAULT
 

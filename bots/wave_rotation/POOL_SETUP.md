@@ -7,7 +7,7 @@ This guide explains how to configure and use the newly added pool configurations
 The Wave Rotation strategy now supports 12 pools across 3 major DeFi categories:
 - **4 Aave v3 Lending Pools**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP Pools**: USDC/cbBTC, USDC/USDT, WETH/USDC, cbETH/WETH, WETH/USDT
-- **3 ERC-4626 Vaults**: stETH yield, cbBTC vault, USDC vault
+- **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
 
 ## Quick Start
 
@@ -63,7 +63,7 @@ BEEFY_CBETH_WETH_VAULT=
 BEEFY_WETH_USDT_VAULT=
 
 # ERC-4626 Vaults (depends on your chosen protocols)
-STETH_YIELD_VAULT_BASE=
+WETH_YIELD_VAULT_BASE=
 CBBTC_ERC4626_VAULT=
 USDC_ERC4626_VAULT=
 ```
@@ -136,7 +136,7 @@ Provide liquidity on Aerodrome DEX and stake LP tokens in Beefy:
 ### ERC-4626 Vaults
 
 Standard vault interface for various yield strategies:
-- `pool:base:erc4626:stETH-yield` - **LST yield** from staking
+- `pool:base:erc4626:WETH-yield` - **WETH yield** via Morpho × Yearn vault
 - `pool:base:erc4626:cbBTC-vault` - Bitcoin yield strategies
 - `pool:base:erc4626:USDC-vault` - Stablecoin yield strategies
 

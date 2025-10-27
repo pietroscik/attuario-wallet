@@ -41,7 +41,11 @@ for KEY in "${!MAP[@]}"; do
     found_any=true
     echo "✓ $VAR_NAME = $ADDR"
     # Valorizza per QUESTA run
-    echo "$VAR_NAME=$ADDR" >> "$GITHUB_ENV"
+    if [[ -n "${GITHUB_ENV:-}" ]]; then
+      echo "$VAR_NAME=$ADDR" >> "$GITHUB_ENV"
+    else
+      export "$VAR_NAME=$ADDR"
+    fi
     # Salva anche come GitHub Environment Variable (per le run future)
     gh variable set "$VAR_NAME" --env "$ENV_NAME" --body "$ADDR" &>/dev/null || echo "  (failed to persist via gh variable)"
   else

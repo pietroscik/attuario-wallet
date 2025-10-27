@@ -227,12 +227,38 @@ def select_best_pool(
         "true",
         "yes",
     }
+    adapter_probe_relaxed = False
+    if require_adapter and w3 is None:
+        require_adapter = False
+        adapter_probe_relaxed = True
 
     ttl_raw = os.getenv("ADAPTER_CACHE_TTL_H", "168")
     try:
         ttl_hours = float(ttl_raw)
     except ValueError:
         ttl_hours = 168.0
+
+    allow_builtin_adapters = os.getenv("ALLOW_BUILTIN_ADAPTERS", "true").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
+    explicit_pool_ids = set()
+    for key in adapters_cfg.keys():
+        if not isinstance(key, str):
+            continue
+        explicit_pool_ids.add(key)
+        if key.startswith("pool:"):
+            explicit_pool_ids.add(key[5:])
+
+    allow_external_pools = os.getenv("ALLOW_UNLISTED_POOLS", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     builtin_adapter_hints = [
         ("beefy", ("BEEFY", "beefy-auto")),
@@ -312,21 +338,22 @@ def select_best_pool(
                 adapter_meta[key] = info
                 return info
 
-        normalized_project = re.sub(r"[^a-z0-9]+", "", project)
-        for hint, (adapter_type, label) in builtin_adapter_hints:
-            if hint in normalized_project:
-                info = AdapterInfo(True, f"builtin:{label}", adapter_type)
-                adapter_meta[key] = info
-                cache_key = None
-                if pool_id and address:
-                    cache_key = f"{pool_id}:{address.lower()}"
-                elif address:
-                    cache_key = address.lower()
-                elif pool_id:
-                    cache_key = pool_id
-                if cache_key:
-                    set_cached(cache_key, adapter_type, reason=info.source)
-                return info
+        if allow_builtin_adapters:
+            normalized_project = re.sub(r"[^a-z0-9]+", "", project)
+            for hint, (adapter_type, label) in builtin_adapter_hints:
+                if hint in normalized_project:
+                    info = AdapterInfo(True, f"builtin:{label}", adapter_type)
+                    adapter_meta[key] = info
+                    cache_key = None
+                    if pool_id and address:
+                        cache_key = f"{pool_id}:{address.lower()}"
+                    elif address:
+                        cache_key = address.lower()
+                    elif pool_id:
+                        cache_key = pool_id
+                    if cache_key:
+                        set_cached(cache_key, adapter_type, reason=info.source)
+                    return info
 
         cache_key = None
         if pool_id and address:
@@ -422,6 +449,10 @@ def select_best_pool(
         if exclude_virtual and is_virtual(pool):
             continue
 
+        pool_id_value = str(pool.get("pool_id") or "").strip()
+        if not allow_external_pools and explicit_pool_ids and pool_id_value not in explicit_pool_ids:
+            continue
+
         base_pool_set.append(pool)
 
     if not base_pool_set and pools:
@@ -433,6 +464,8 @@ def select_best_pool(
         "applied": [],
         "skipped": [],
     }
+    if adapter_probe_relaxed:
+        filter_report.setdefault("relaxed", []).append("adapter_probe_no_web3")
 
     if base_relaxed:
         filter_report.setdefault("relaxed", []).append("prefilter")
@@ -691,7 +724,14 @@ def main() -> None:
         send_telegram(msg, config)
         return
 
+    reserve_eth = float(os.getenv("GAS_RESERVE_ETH", "0.004"))
+    available_onchain = get_available_capital_eth(reserve_eth)
+
+    capital_file_exists = CAPITAL_FILE.exists()
     capital_hint_eth = load_decimal_file(CAPITAL_FILE, 100.0)
+    if not capital_file_exists and available_onchain is not None:
+        capital_hint_eth = available_onchain
+        store_decimal_file(CAPITAL_FILE, capital_hint_eth)
 
     selected, candidate_map = select_best_pool(pools, config, state, w3, capital_hint_eth)
     if not selected:
@@ -716,8 +756,6 @@ def main() -> None:
     if relaxed_markers:
         metadata_bits.append("relaxed=" + "+".join(sorted(set(relaxed_markers))))
 
-    reserve_eth = float(os.getenv("GAS_RESERVE_ETH", "0.004"))
-    available_onchain = get_available_capital_eth(reserve_eth)
     gas_status_note: Optional[str] = None
     if available_onchain is not None:
         if available_onchain <= 0:

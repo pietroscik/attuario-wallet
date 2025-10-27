@@ -82,7 +82,7 @@ La strategia ora supporta **12 pool** su Base chain, coprendo tutti i principali
 
 - **4 Aave v3 Lending**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP**: USDC/cbBTC, USDC/USDT (stable), WETH/USDC, cbETH/WETH (LST), WETH/USDT
-- **3 ERC-4626 Vaults**: stETH yield, cbBTC vault, USDC vault
+- **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
 
 Per configurare i nuovi pool:
 
@@ -92,7 +92,7 @@ Per configurare i nuovi pool:
    ```
 
 2. **Imposta indirizzi mancanti** nel `.env` (vedi `.env.example` per la lista completa):
-   - Token addresses (USDT, cbETH, wstETH)
+   - Token addresses (USDT, cbETH, WETH)
    - Beefy vault addresses
    - ERC-4626 vault addresses
 

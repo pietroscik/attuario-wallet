@@ -97,10 +97,10 @@
       "token1": "${USDT_BASE}",
       "slippage_bps": 50
     },
-    "pool:base:erc4626:stETH-yield": {
+    "pool:base:erc4626:WETH-yield": {
       "type": "erc4626",
-      "vault": "${STETH_YIELD_VAULT_BASE}",
-      "asset": "${WSTETH_BASE}"
+      "vault": "${WETH_YIELD_VAULT_BASE}",
+      "asset": "${WETH_TOKEN_ADDRESS}"
     },
     "pool:base:erc4626:cbBTC-vault": {
       "type": "erc4626",

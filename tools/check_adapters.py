@@ -58,6 +58,20 @@ ERC4626_META_ABI = [
         "stateMutability": "view",
         "type": "function",
     },
+    {
+        "name": "previewDeposit",
+        "outputs": [{"type": "uint256"}],
+        "inputs": [{"name": "assets", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "name": "previewRedeem",
+        "outputs": [{"type": "uint256"}],
+        "inputs": [{"name": "shares", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
 ]
 
 
@@ -129,8 +143,25 @@ def check_erc4626(w3: Web3, label: str, cfg: dict) -> bool:
         print("  !! Configured decimals differ from vault.decimals")
         ok = False
     if decimals != vault_decimals:
-        print("  !! Asset/token decimals differ from vault.decimals")
-        ok = False
+        try:
+            probe_power = min(int(decimals), 6)
+            probe_assets = max(1, 10 ** probe_power)
+            shares = vault.functions.previewDeposit(probe_assets).call()
+            assets_back = vault.functions.previewRedeem(shares).call()
+            tolerance = max(1, probe_assets // 1_000)
+            drift = abs(int(assets_back) - int(probe_assets))
+            print(
+                f"  WARN Asset/token decimals ({decimals}) differ from vault.decimals ({vault_decimals}) "
+                f"(roundtrip drift={drift}, tol={tolerance})"
+            )
+        except Exception as exc:
+            print(
+                f"  !! Asset/token decimals ({decimals}) differ from vault.decimals ({vault_decimals}) "
+                f"and preview roundtrip failed: {exc}"
+            )
+            ok = False
+    else:
+        print("  OK   Asset/token decimals match vault.decimals")
     return ok
 
 

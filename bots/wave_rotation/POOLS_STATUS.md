@@ -27,7 +27,7 @@ These pools are configured but need Beefy vault contract addresses:
 
 ## ⏳ Pools Needing ERC-4626 Vault Addresses (2/12)
 
-11. **pool:base:erc4626:stETH-yield** - Needs STETH_YIELD_VAULT_BASE
+11. **pool:base:erc4626:WETH-yield** - Needs WETH_YIELD_VAULT_BASE
 12. **pool:base:erc4626:cbBTC-vault** - Needs CBBTC_ERC4626_VAULT
 
 ## How to Find Missing Addresses
@@ -41,7 +41,7 @@ These pools are configured but need Beefy vault contract addresses:
 6. Add to `.env` file or GitHub Actions secrets
 
 ### For ERC-4626 Vaults
-- **stETH yield**: Check Lido or Morpho for wstETH vaults on Base
+- **WETH yield**: Check Morpho/Yearn per il vault WETH OG su Base
 - **cbBTC vault**: Check ERC-4626 registry at https://erc4626.info/vaults/
 - Can also use Yearn, Morpho, or other ERC-4626 providers
 

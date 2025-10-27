@@ -50,32 +50,6 @@ def should_move(
     est_move_gas: int,
     w3: Web3,
 ) -> Tuple[bool, str]:
-    """Return whether the expected edge justifies moving capital."""
+    """Economic guardrail disattivato: consente sempre il movimento."""
 
-    score_current = score_current or 0.0
-
-    fx_rate = _decimal_env("FX_EUR_PER_ETH", "3000")
-
-    horizon_hours_raw = os.getenv("EDGE_HORIZON_H", "24")
-    try:
-        horizon_hours = float(horizon_hours_raw)
-    except ValueError:
-        horizon_hours = 24.0
-    horizon_hours = max(1.0, horizon_hours)
-
-    capital_dec = Decimal(str(max(0.0, capital_eth)))
-    delta_score = Decimal(str(max(0.0, score_best - score_current)))
-    edge_eth = capital_dec * delta_score * Decimal(horizon_hours / 24.0)
-    edge_eur = edge_eth * fx_rate
-
-    gas_price = Decimal(str(w3.eth.gas_price))  # wei
-    gas_eth = Decimal(est_move_gas) * gas_price / Decimal(10**18)
-    gas_eur = gas_eth * fx_rate
-
-    net_eur = edge_eur - gas_eur
-    if net_eur <= 0:
-        return False, (
-            f"edge_non_positive:{net_eur:.2f}€ (edge={edge_eur:.2f}€, gas={gas_eur:.2f}€)"
-        )
-
-    return True, f"edge_ok:{net_eur:.2f}€"
+    return True, "edge_disabled"

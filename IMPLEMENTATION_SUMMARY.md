@@ -27,16 +27,16 @@ Liquidity provision su Aerodrome DEX con farming su Beefy:
 #### 3. ERC-4626 Vaults (3 pool)
 Vault standard per strategie di yield avanzate:
 
-- **pool:base:erc4626:stETH-yield**: Vault per yield staking su stETH (nuovo)
+- **pool:base:erc4626:WETH-yield**: Vault per yield staking su WETH (nuovo)
 - **pool:base:erc4626:cbBTC-vault**: Vault strategia BTC (nuovo)
 - **pool:base:erc4626:USDC-vault**: Vault strategia stablecoin (nuovo)
 
 ## Copertura Settori DeFi
 
 ✅ **Stable/Stable**: USDC/USDT con matematica stable swap
-✅ **LST (Liquid Staking Tokens)**: cbETH/WETH + stETH yield + cbETH lending
+✅ **LST (Liquid Staking Tokens)**: cbETH/WETH + cbETH lending
 ✅ **DeFi Lending su BTC/stable**: cbBTC su Aave + USDC/cbBTC LP
-✅ **Yield su stETH**: Vault dedicato per stETH
+✅ **Yield su WETH**: Vault dedicato per WETH
 ✅ **Pool ETH/stable**: WETH/USDC e WETH/USDT
 ✅ **Posizioni lending**: USDC, cbBTC, cbETH su Aave v3
 
@@ -66,7 +66,7 @@ Vault standard per strategie di yield avanzate:
 ✓ 5 Beefy/Aerodrome LP pools
 ✓ 3 ERC-4626 vault pools
 ✓ 1 stable/stable pool (USDC/USDT)
-✓ 3 LST pools (cbETH/WETH, stETH-yield, cbETH)
+✓ 2 LST pools (cbETH/WETH LP, cbETH lending)
 ✓ 2 ETH/stable pools (WETH/USDC, WETH/USDT)
 ✓ 3 BTC-related pools
 ✓ All required fields present
@@ -120,7 +120,7 @@ BEEFY_CBETH_WETH_VAULT=
 BEEFY_WETH_USDT_VAULT=
 
 # ERC-4626 vaults
-STETH_YIELD_VAULT_BASE=
+WETH_YIELD_VAULT_BASE=
 CBBTC_ERC4626_VAULT=
 USDC_ERC4626_VAULT=
 ```
@@ -189,7 +189,7 @@ pool:{chain}:{protocol}:{asset(s)}
 Esempi:
 - `pool:base:aave-v3:USDC`
 - `pool:base:beefy:WETH-USDC`
-- `pool:base:erc4626:stETH-yield`
+- `pool:base:erc4626:WETH-yield`
 
 ### Adapter Types
 - `aave_v3`: Single-sided lending
