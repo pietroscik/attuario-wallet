@@ -21,6 +21,7 @@ COLUMNS: Iterable[str] = (
     "r_realized",
     "interval_multiplier",
     "interval_profit",
+    "reinvest_ratio",
     "capital_gross_after",
     "roi_daily",
     "roi_total",
@@ -114,6 +115,9 @@ def build_telegram_message(payload: Dict[str, float | str]) -> str:
     interval_profit = float(payload.get("interval_profit", 0.0))
     capital_gross_after = float(payload.get("capital_gross_after", capital_after))
     reinvest_ratio = float(payload.get("reinvest_ratio", 1.0))
+    reinvest_ratio_planned = float(
+        payload.get("reinvest_ratio_planned", reinvest_ratio) or reinvest_ratio
+    )
     score = float(payload.get("score", 0.0))
     score_previous = float(payload.get("score_previous", 0.0))
     score_delta = float(payload.get("score_delta", 0.0))
@@ -132,9 +136,16 @@ def build_telegram_message(payload: Dict[str, float | str]) -> str:
 
     reinvest_pct = reinvest_ratio * 100.0
     if reinvest_ratio >= 0.999:
-        capital_line = (
-            f"💰 Capitale reinvestito: {capital_before:.6f} ETH → {capital_after:.6f} ETH"
-        )
+        if reinvest_ratio_planned < 0.999:
+            capital_line = (
+                "💰 Capitale reinvestito: "
+                f"{capital_before:.6f} ETH → {capital_after:.6f} ETH "
+                "(soglia treasury non raggiunta)"
+            )
+        else:
+            capital_line = (
+                f"💰 Capitale reinvestito: {capital_before:.6f} ETH → {capital_after:.6f} ETH"
+            )
     else:
         capital_line = (
             "💰 Capitale reinvestito ("

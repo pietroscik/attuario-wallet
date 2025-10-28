@@ -27,7 +27,12 @@ try:  # Optional dependency – allows tests to import without network libs
     import requests
 except ModuleNotFoundError:  # pragma: no cover - import guard branch
     requests = None  # type: ignore[assignment]
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # pragma: no cover - fallback for minimal envs
+    def load_dotenv(*_args, **_kwargs):  # type: ignore[override]
+        return False
 
 from data_sources import fetch_pools_scoped
 from executor import move_capital_smart, settle_day
@@ -47,6 +52,10 @@ CAPITAL_FILE = BASE_DIR / "capital.txt"
 TREASURY_FILE = BASE_DIR / "treasury.txt"
 STATE_FILE = BASE_DIR / "state.json"
 LOG_FILE = BASE_DIR / "log.csv"
+
+
+DEFAULT_FX_EUR_PER_ETH = 3000.0
+DEFAULT_TREASURY_MIN_EUR = 0.5
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -170,6 +179,42 @@ def load_decimal_file(path: Path, default: float) -> float:
 
 def store_decimal_file(path: Path, value: float) -> None:
     path.write_text(f"{value:.6f}")
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def effective_reinvest_ratio(
+    profit_eth: float,
+    base_reinvest_ratio: float,
+    *,
+    fx_rate: float,
+    min_payout_eur: float,
+) -> float:
+    """Return the reinvest ratio after applying the treasury payout threshold."""
+
+    if profit_eth <= 0:
+        return 1.0
+
+    base = max(0.0, min(1.0, base_reinvest_ratio))
+    treasury_ratio = 1.0 - base
+    if treasury_ratio <= 0:
+        return 1.0
+
+    fx = max(fx_rate, 0.0)
+    threshold = max(min_payout_eur, 0.0)
+
+    treasury_share_eur = profit_eth * treasury_ratio * fx
+    if treasury_share_eur >= threshold:
+        return base
+    return 1.0
 
 
 def send_telegram(msg: str, config: StrategyConfig) -> None:
@@ -538,6 +583,10 @@ def main() -> None:
     realized_interval_profit = 0.0
     capital_gross_after = capital_before
 
+    fx_rate = _float_env("FX_EUR_PER_ETH", DEFAULT_FX_EUR_PER_ETH)
+    treasury_min_eur = _float_env("TREASURY_MIN_EUR", DEFAULT_TREASURY_MIN_EUR)
+    reinvest_ratio_effective = 1.0
+
     if crisis_flag:
         status_head = "stopped"
         capital_after = capital_before
@@ -555,8 +604,15 @@ def main() -> None:
             "[paused] stop-loss attivo: sola valutazione, capitale invariato."
         )
     else:
+        profit_preview = capital_before * r_net_interval
+        reinvest_ratio_effective = effective_reinvest_ratio(
+            profit_preview,
+            config.reinvest_ratio,
+            fx_rate=fx_rate,
+            min_payout_eur=treasury_min_eur,
+        )
         profit, capital_after, treasury_delta_planned = settle_day(
-            capital_before, r_net_interval, config.reinvest_ratio
+            capital_before, r_net_interval, reinvest_ratio_effective
         )
         realized_interval_multiplier = interval_multiplier
         realized_interval_profit = profit
@@ -621,7 +677,7 @@ def main() -> None:
     )
 
     capital_basis_start = capital_start_day
-    capital_basis_end = capital_after
+    capital_basis_end = capital_gross_after
     pnl_capital = capital_basis_end - capital_basis_start
     roi_capital_pct = (
         (pnl_capital / capital_basis_start) * 100 if capital_basis_start else 0.0
@@ -645,6 +701,7 @@ def main() -> None:
         "r_realized": f"{realized_return:.6f}",
         "interval_multiplier": f"{realized_interval_multiplier:.6f}",
         "interval_profit": f"{realized_interval_profit:.6f}",
+        "reinvest_ratio": f"{reinvest_ratio_effective:.6f}",
         "capital_gross_after": f"{capital_gross_after:.6f}",
         "roi_daily": f"{roi_capital_pct:.6f}",
         "roi_total": f"{roi_total_pct:.6f}",
@@ -680,7 +737,10 @@ def main() -> None:
         "pnl_capital": pnl_capital,
         "pnl_total": pnl_total,
         "treasury_total": treasury_total,
-        "reinvest_ratio": config.reinvest_ratio,
+        "reinvest_ratio": reinvest_ratio_effective,
+        "reinvest_ratio_planned": config.reinvest_ratio,
+        "treasury_threshold_eur": treasury_min_eur,
+        "fx_eur_per_eth": fx_rate,
         "score": working_pool["score"],
         "status": status_combined,
         "status_head": status_head,
