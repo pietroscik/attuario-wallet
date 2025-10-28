@@ -7,6 +7,8 @@ import importlib
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add the current directory to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -91,7 +93,7 @@ def test_data_normalization():
 def test_settle_day():
     """Test capital settlement logic."""
     from executor import settle_day
-    
+
     capital = 100.0
     r_net = 0.05  # 5% return
     reinvest_ratio = 0.5
@@ -101,8 +103,33 @@ def test_settle_day():
     assert profit == 5.0, f"Profit should be 5.0, got {profit}"
     assert capital_new == 102.5, f"New capital should be 102.5, got {capital_new}"
     assert treasury_delta == 2.5, f"Treasury should be 2.5, got {treasury_delta}"
-    
+
     print(f"✓ settle_day: profit={profit}, new_capital={capital_new}, treasury={treasury_delta}")
+
+
+def test_effective_reinvest_ratio_threshold():
+    """Treasury payout should trigger only above the EUR threshold."""
+
+    try:
+        from strategy import effective_reinvest_ratio
+    except ModuleNotFoundError as exc:  # Optional deps missing for strategy import
+        pytest.skip(f"strategy import skipped: missing dependency {exc.name}")
+
+    base_ratio = 0.5
+    fx_rate = 1800.0
+    min_eur = 0.5
+
+    # Profit too small: the 50% treasury share would be <0.5 EUR → reinvest everything.
+    ratio_small = effective_reinvest_ratio(0.0001, base_ratio, fx_rate=fx_rate, min_payout_eur=min_eur)
+    assert ratio_small == 1.0
+
+    # Profit large enough: treasury share clears the threshold → honour the base ratio.
+    ratio_large = effective_reinvest_ratio(0.01, base_ratio, fx_rate=fx_rate, min_payout_eur=min_eur)
+    assert abs(ratio_large - base_ratio) < 1e-9
+
+    print(
+        "✓ effective_reinvest_ratio threshold logic: small profit reinvested, large profit splits"
+    )
 
 def test_should_switch():
     """Test pool switching logic."""

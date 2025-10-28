@@ -345,12 +345,23 @@ def _investment_status(
 
     roi_daily = _parse_float(last_log, "roi_daily")
     pnl_daily = _parse_float(last_log, "pnl_daily")
+    roi_total = _parse_float(last_log, "roi_total")
+    pnl_total = _parse_float(last_log, "pnl_total")
+    hint_roi = f"PnL capitale {pnl_daily:.6f} ETH"
+    if (
+        abs(roi_total - roi_daily) > 1e-9
+        or abs(pnl_total - pnl_daily) > 1e-9
+    ):
+        hint_roi += (
+            f" | Patrimonio (treasury incluso): {roi_total:.3f}%"
+            f" / {pnl_total:+.6f} ETH"
+        )
     items.append(
         StatusItem(
-            "ROI giornaliero",
+            "ROI giornaliero (capitale)",
             f"{roi_daily:.3f}%",
             severity="info",
-            hint=f"PnL giornaliero {pnl_daily:.6f} ETH",
+            hint=hint_roi,
         )
     )
 

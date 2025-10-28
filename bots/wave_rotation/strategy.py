@@ -27,7 +27,12 @@ try:  # Optional dependency – allows tests to import without network libs
     import requests
 except ModuleNotFoundError:  # pragma: no cover - import guard branch
     requests = None  # type: ignore[assignment]
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # pragma: no cover - fallback for minimal envs
+    def load_dotenv(*_args, **_kwargs):  # type: ignore[override]
+        return False
 
 from data_sources import fetch_pools_scoped
 from executor import move_capital_smart, settle_day
@@ -47,6 +52,10 @@ CAPITAL_FILE = BASE_DIR / "capital.txt"
 TREASURY_FILE = BASE_DIR / "treasury.txt"
 STATE_FILE = BASE_DIR / "state.json"
 LOG_FILE = BASE_DIR / "log.csv"
+
+
+DEFAULT_FX_EUR_PER_ETH = 3000.0
+DEFAULT_TREASURY_MIN_EUR = 0.5
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -109,6 +118,7 @@ class StrategyState:
     paused: bool = False
     day_utc: Optional[str] = None
     capital_start_day: float = 0.0
+    treasury_start_day: float = 0.0
     last_resume_attempt: Optional[str] = None
     last_portfolio_move: Optional[str] = None
     last_switch_ts: Optional[float] = None
@@ -130,6 +140,7 @@ class StrategyState:
             paused=bool(raw.get("paused", False)),
             day_utc=raw.get("day_utc"),
             capital_start_day=float(raw.get("capital_start_day", 0.0)),
+            treasury_start_day=float(raw.get("treasury_start_day", 0.0)),
             last_resume_attempt=raw.get("last_resume_attempt"),
             last_portfolio_move=raw.get("last_portfolio_move"),
             last_switch_ts=float(raw.get("last_switch_ts")) if raw.get("last_switch_ts") is not None else None,
@@ -147,6 +158,7 @@ class StrategyState:
             "paused": self.paused,
             "day_utc": self.day_utc,
             "capital_start_day": self.capital_start_day,
+            "treasury_start_day": self.treasury_start_day,
             "last_resume_attempt": self.last_resume_attempt,
             "last_portfolio_move": self.last_portfolio_move,
             "last_switch_ts": self.last_switch_ts,
@@ -167,6 +179,42 @@ def load_decimal_file(path: Path, default: float) -> float:
 
 def store_decimal_file(path: Path, value: float) -> None:
     path.write_text(f"{value:.6f}")
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def effective_reinvest_ratio(
+    profit_eth: float,
+    base_reinvest_ratio: float,
+    *,
+    fx_rate: float,
+    min_payout_eur: float,
+) -> float:
+    """Return the reinvest ratio after applying the treasury payout threshold."""
+
+    if profit_eth <= 0:
+        return 1.0
+
+    base = max(0.0, min(1.0, base_reinvest_ratio))
+    treasury_ratio = 1.0 - base
+    if treasury_ratio <= 0:
+        return 1.0
+
+    fx = max(fx_rate, 0.0)
+    threshold = max(min_payout_eur, 0.0)
+
+    treasury_share_eur = profit_eth * treasury_ratio * fx
+    if treasury_share_eur >= threshold:
+        return base
+    return 1.0
 
 
 def send_telegram(msg: str, config: StrategyConfig) -> None:
@@ -366,11 +414,17 @@ def main() -> None:
     treasury_total = load_decimal_file(TREASURY_FILE, 0.0)
 
     current_day = datetime.utcnow().strftime("%Y-%m-%d")
-    if state.day_utc != current_day or state.capital_start_day <= 0:
+    if (
+        state.day_utc != current_day
+        or state.capital_start_day <= 0
+        or state.treasury_start_day < 0
+    ):
         state.day_utc = current_day
         state.capital_start_day = capital_before if capital_before > 0 else 1.0
+        state.treasury_start_day = treasury_total
 
     capital_start_day = state.capital_start_day if state.capital_start_day > 0 else 1.0
+    treasury_start_day = state.treasury_start_day if state.treasury_start_day >= 0 else 0.0
 
     selection_cfg = config.selection or {}
     if selection_cfg.get("gas_horizon_h") is not None:
@@ -431,6 +485,7 @@ def main() -> None:
 
     r_net_daily = working_pool["r_net"]
     r_net_interval = (1.0 + r_net_daily) ** interval_factor - 1.0
+    interval_multiplier = 1.0 + r_net_interval
     status_head = "executed"
     status_notes: List[str] = []
     extra_notifications: List[str] = []
@@ -524,6 +579,14 @@ def main() -> None:
     capital_after: float
     treasury_delta: float
 
+    realized_interval_multiplier = 1.0
+    realized_interval_profit = 0.0
+    capital_gross_after = capital_before
+
+    fx_rate = _float_env("FX_EUR_PER_ETH", DEFAULT_FX_EUR_PER_ETH)
+    treasury_min_eur = _float_env("TREASURY_MIN_EUR", DEFAULT_TREASURY_MIN_EUR)
+    reinvest_ratio_effective = 1.0
+
     if crisis_flag:
         status_head = "stopped"
         capital_after = capital_before
@@ -541,9 +604,19 @@ def main() -> None:
             "[paused] stop-loss attivo: sola valutazione, capitale invariato."
         )
     else:
-        profit, capital_after, treasury_delta_planned = settle_day(
-            capital_before, r_net_interval, config.reinvest_ratio
+        profit_preview = capital_before * r_net_interval
+        reinvest_ratio_effective = effective_reinvest_ratio(
+            profit_preview,
+            config.reinvest_ratio,
+            fx_rate=fx_rate,
+            min_payout_eur=treasury_min_eur,
         )
+        profit, capital_after, treasury_delta_planned = settle_day(
+            capital_before, r_net_interval, reinvest_ratio_effective
+        )
+        realized_interval_multiplier = interval_multiplier
+        realized_interval_profit = profit
+        capital_gross_after = capital_before + profit
         store_decimal_file(CAPITAL_FILE, capital_after)
 
         treasury_delta_effective = 0.0
@@ -599,12 +672,23 @@ def main() -> None:
         suffix = "|".join(status_tags)
         status_combined = f"{status_head}|{suffix}" if status_head else suffix
 
-    realized_return = 0.0
-    if capital_before > 0:
-        realized_return = (capital_after / capital_before) - 1.0
+    realized_return = (
+        realized_interval_profit / capital_before if capital_before > 0 else 0.0
+    )
 
-    pnl_daily = capital_after - capital_start_day
-    roi_daily_pct = (pnl_daily / capital_start_day) * 100 if capital_start_day else 0.0
+    capital_basis_start = capital_start_day
+    capital_basis_end = capital_gross_after
+    pnl_capital = capital_basis_end - capital_basis_start
+    roi_capital_pct = (
+        (pnl_capital / capital_basis_start) * 100 if capital_basis_start else 0.0
+    )
+
+    total_assets_after = capital_after + treasury_total
+    total_assets_start = capital_start_day + treasury_start_day
+    pnl_total = total_assets_after - total_assets_start
+    roi_total_pct = (
+        (pnl_total / total_assets_start) * 100 if total_assets_start else 0.0
+    )
 
     row = {
         "date": timestamp_now(),
@@ -615,12 +699,19 @@ def main() -> None:
         "r_net_daily": f"{r_net_daily:.6f}",
         "r_net_interval": f"{r_net_interval:.6f}",
         "r_realized": f"{realized_return:.6f}",
-        "roi_daily": f"{roi_daily_pct:.6f}",
-        "pnl_daily": f"{pnl_daily:.6f}",
+        "interval_multiplier": f"{realized_interval_multiplier:.6f}",
+        "interval_profit": f"{realized_interval_profit:.6f}",
+        "reinvest_ratio": f"{reinvest_ratio_effective:.6f}",
+        "capital_gross_after": f"{capital_gross_after:.6f}",
+        "roi_daily": f"{roi_capital_pct:.6f}",
+        "roi_total": f"{roi_total_pct:.6f}",
+        "pnl_daily": f"{pnl_capital:.6f}",
+        "pnl_total": f"{pnl_total:.6f}",
         "score": f"{working_pool['score']:.6f}",
         "capital_before": f"{capital_before:.6f}",
         "capital_after": f"{capital_after:.6f}",
         "treasury_delta": f"{treasury_delta:.6f}",
+        "treasury_total": f"{treasury_total:.6f}",
         "status": status_combined,
     }
     append_log(row, str(LOG_FILE))
@@ -633,11 +724,23 @@ def main() -> None:
         "r_net_daily": r_net_daily,
         "r_net_interval": r_net_interval,
         "r_realized": realized_return,
+        "interval_multiplier": realized_interval_multiplier,
+        "interval_profit": realized_interval_profit,
+        "capital_gross_after": capital_gross_after,
         "capital_before": capital_before,
         "capital_after": capital_after,
         "treasury_delta": treasury_delta,
-        "roi_daily": roi_daily_pct,
-        "pnl_daily": pnl_daily,
+        "roi_daily": roi_capital_pct,
+        "roi_capital": roi_capital_pct,
+        "roi_total": roi_total_pct,
+        "pnl_daily": pnl_capital,
+        "pnl_capital": pnl_capital,
+        "pnl_total": pnl_total,
+        "treasury_total": treasury_total,
+        "reinvest_ratio": reinvest_ratio_effective,
+        "reinvest_ratio_planned": config.reinvest_ratio,
+        "treasury_threshold_eur": treasury_min_eur,
+        "fx_eur_per_eth": fx_rate,
         "score": working_pool["score"],
         "status": status_combined,
         "status_head": status_head,
