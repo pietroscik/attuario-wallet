@@ -14,6 +14,8 @@ Caratteristiche:
 
 from __future__ import annotations
 
+import argparse
+import csv
 import json
 import os
 import time
@@ -21,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 try:  # Optional dependency – allows tests to import without network libs
     import requests
@@ -334,11 +336,136 @@ def push_onchain(selected: Dict[str, object], capital_token: float) -> Optional[
     return push_strategy_update(pool_name, apy_percent, capital_token)
 
 
-def main() -> None:
+def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Esegue la strategia Wave Rotation o mostra lo stato attuale.",
+    )
+    parser.add_argument(
+        "--config",
+        dest="config",
+        default=str(BASE_DIR / "config.json"),
+        help="Percorso del file di configurazione JSON (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--print-status",
+        action="store_true",
+        help="Mostra un riepilogo dello stato corrente e termina",
+    )
+    return parser.parse_args(argv)
+
+
+def _load_last_log_entry(log_path: Path) -> Optional[Dict[str, str]]:
+    if not log_path.exists():
+        return None
+    try:
+        with log_path.open(newline="") as fh:
+            reader = csv.DictReader(fh)
+            last_row: Optional[Dict[str, str]] = None
+            for row in reader:
+                last_row = row
+            return last_row
+    except Exception:
+        return None
+
+
+def print_strategy_status(
+    config: Optional[StrategyConfig],
+    state: StrategyState,
+    *,
+    config_path: Optional[Path] = None,
+    config_error: Optional[str] = None,
+) -> None:
+    print("📊 Wave Rotation – stato corrente")
+
+    if config_path is not None:
+        if config_error:
+            print(f"• Config: {config_path} (⚠️ {config_error})")
+        else:
+            print(f"• Config: {config_path}")
+
+    if config is not None:
+        print(
+            "• Finestra schedulata: "
+            f"{config.schedule_utc} UTC | Δ switch {config.delta_switch:.2%}"
+        )
+        chains = ", ".join(config.chains) if config.chains else "n/d"
+        print(f"• Catene abilitate: {chains}")
+
+    capital = load_decimal_file(CAPITAL_FILE, 0.0)
+    treasury = load_decimal_file(TREASURY_FILE, 0.0)
+
+    pool_name = state.pool_name or "n/d"
+    chain = state.chain or "n/d"
+    score = float(state.score if state.score is not None else 0.0)
+    updated = state.updated_at or "n/d"
+
+    print(f"• Pool attivo: {pool_name} ({chain}) | score {score:.6f}")
+    print(f"• Ultimo aggiornamento: {updated}")
+    pause_state = "attiva" if state.paused else "disattiva"
+    print(
+        "• Pausa automatica: "
+        f"{pause_state} | streak crisi {state.crisis_streak}"
+    )
+    if state.last_crisis_at:
+        print(f"  └─ Ultima crisi: {state.last_crisis_at}")
+    if state.last_portfolio_move:
+        print(f"  └─ Ultimo movimento portafoglio: {state.last_portfolio_move}")
+
+    print(f"• Capitale corrente: {capital:.6f}")
+    print(f"• Treasury cumulata: {treasury:.6f}")
+
+    last_entry = _load_last_log_entry(LOG_FILE)
+    if last_entry:
+        date = last_entry.get("date", "?")
+        status = last_entry.get("status", "?")
+        capital_after = last_entry.get("capital_after")
+        treasury_total = last_entry.get("treasury_total")
+        extra_bits = []
+        if capital_after:
+            extra_bits.append(f"cap {capital_after}")
+        if treasury_total:
+            extra_bits.append(f"treasury {treasury_total}")
+        tail = f" ({', '.join(extra_bits)})" if extra_bits else ""
+        print(f"• Ultimo log: {date} – {status}{tail}")
+    else:
+        print("• Nessun log disponibile")
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    args = _parse_args(argv)
+
     load_dotenv()
 
-    config = StrategyConfig.load(BASE_DIR / "config.json")
+    config_path = Path(args.config).expanduser()
+    config: Optional[StrategyConfig] = None
+    config_error: Optional[str] = None
+
+    try:
+        config = StrategyConfig.load(config_path)
+    except FileNotFoundError:
+        config_error = "file non trovato"
+    except json.JSONDecodeError as exc:
+        config_error = f"JSON non valido ({exc})"
+
     state = StrategyState.load(STATE_FILE)
+
+    if args.print_status:
+        print_strategy_status(
+            config,
+            state,
+            config_path=config_path,
+            config_error=config_error,
+        )
+        return
+
+    if config is None:
+        if config_error:
+            raise SystemExit(
+                f"Impossibile caricare la config {config_path}: {config_error}"
+            )
+        raise SystemExit(
+            f"Impossibile caricare la config {config_path} (motivo sconosciuto)"
+        )
     interval_seconds_env = os.getenv("WAVE_LOOP_INTERVAL_SECONDS")
     try:
         interval_seconds = int(interval_seconds_env) if interval_seconds_env else 300

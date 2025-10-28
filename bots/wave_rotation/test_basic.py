@@ -4,6 +4,7 @@
 """Basic smoke tests for wave rotation strategy."""
 
 import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -130,6 +131,48 @@ def test_effective_reinvest_ratio_threshold():
     print(
         "✓ effective_reinvest_ratio threshold logic: small profit reinvested, large profit splits"
     )
+
+
+def test_reinvestment_simulator_matches_strategy(tmp_path):
+    """La simulazione deve rispettare la soglia treasury e mantenere il capitale investito."""
+
+    from utils import reinvestment_simulator as sim
+
+    cycles = sim.run_simulation(
+        initial_capital=10.0,
+        returns=[0.01],
+        fx_rate=2000.0,
+        min_payout_eur=0.5,
+    )
+    assert len(cycles) == 1
+    cycle = cycles[0]
+    assert pytest.approx(cycle.reinvest_ratio, rel=1e-9) == 0.5
+    assert pytest.approx(cycle.treasury_add, rel=1e-9) == 0.05
+    assert pytest.approx(cycle.capital_after, rel=1e-9) == 10.05
+
+    cycles_small = sim.run_simulation(
+        initial_capital=10.0,
+        returns=[0.00001],
+        fx_rate=2000.0,
+        min_payout_eur=0.5,
+    )
+    assert cycles_small[0].reinvest_ratio == 1.0
+    assert cycles_small[0].treasury_add == 0.0
+
+    log_path = tmp_path / "log.csv"
+    log_path.write_text(
+        "date,capital_before,capital_after,treasury_delta\n"
+        "2024-01-01,10,10.05,0.5\n"
+        "2024-01-02,10.05,9.95,0\n"
+    )
+
+    loaded_cycles = sim.load_cycles_from_log(log_path)
+    assert len(loaded_cycles) == 2
+    summary = sim.summarize_cycles(loaded_cycles)
+    assert summary["cycles"] == 2
+    assert pytest.approx(summary["capital_start"], rel=1e-9) == 10.0
+    assert pytest.approx(summary["capital_end"], rel=1e-9) == 9.95
+    assert summary["apy_effective"] < 0
 
 def test_should_switch():
     """Test pool switching logic."""
@@ -277,6 +320,155 @@ def test_ops_guard_respects_gas_cost(monkeypatch):
     assert "edge:ok" in note
     assert "gas=" in note
 
+
+def test_strategy_print_status_cli(monkeypatch, tmp_path, capsys):
+    """The CLI --print-status flag should render a concise status report."""
+
+    try:
+        import strategy
+        from logger import append_log, COLUMNS
+    except ModuleNotFoundError as exc:
+        pytest.skip(f"strategy import skipped: missing dependency {exc.name}")
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "chains": ["base"],
+                "min_tvl_usd": 100000,
+                "delta_switch": 0.01,
+                "reinvest_ratio": 0.5,
+                "treasury_token": "USDC",
+                "schedule_utc": "07:00",
+                "stop_loss_daily": -0.1,
+                "take_profit_daily": 0.05,
+                "sources": {},
+                "vault": {},
+                "telegram": {"enabled": False},
+                "adapters": {},
+                "selection": {},
+                "autopause": {},
+            }
+        )
+    )
+
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "pool_id": "pool:base:test",
+                "pool_name": "Test Pool",
+                "chain": "base",
+                "score": 0.0123,
+                "updated_at": "2025-01-01 00:00:00",
+                "paused": False,
+                "crisis_streak": 1,
+                "last_crisis_at": "2024-12-31 23:00:00",
+                "last_portfolio_move": "2025-01-01 00:30:00",
+            }
+        )
+    )
+
+    capital_file = tmp_path / "capital.txt"
+    capital_file.write_text("101.000000")
+    treasury_file = tmp_path / "treasury.txt"
+    treasury_file.write_text("5.500000")
+    log_file = tmp_path / "log.csv"
+
+    row = {key: "" for key in COLUMNS}
+    row.update(
+        {
+            "date": "2025-01-01 00:00:00",
+            "pool": "Test Pool",
+            "chain": "base",
+            "status": "executed|portfolio:ok",
+            "capital_after": "101.500000",
+            "treasury_total": "5.750000",
+        }
+    )
+    append_log(row, str(log_file))
+
+    monkeypatch.setattr(strategy, "CAPITAL_FILE", capital_file)
+    monkeypatch.setattr(strategy, "TREASURY_FILE", treasury_file)
+    monkeypatch.setattr(strategy, "STATE_FILE", state_path)
+    monkeypatch.setattr(strategy, "LOG_FILE", log_file)
+
+    strategy.main(["--config", str(config_path), "--print-status"])
+
+    captured = capsys.readouterr().out
+    assert "Test Pool" in captured
+    assert "score 0.012300" in captured
+    assert "Ultimo log" in captured
+
+
+def test_status_report_checklist(monkeypatch, tmp_path, capsys):
+    """The status report checklist should highlight missing actions."""
+
+    try:
+        import status_report
+        from logger import append_log, COLUMNS
+    except ModuleNotFoundError as exc:
+        pytest.skip(f"status_report import skipped: missing dependency {exc.name}")
+
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "pool_id": "pool:base:test",
+                "pool_name": "Test Pool",
+                "chain": "base",
+                "score": 0.01,
+                "updated_at": "2025-01-01 00:00:00",
+                "paused": False,
+                "crisis_streak": 0,
+            }
+        )
+    )
+
+    capital_file = tmp_path / "capital.txt"
+    capital_file.write_text("100.000000")
+    treasury_file = tmp_path / "treasury.txt"
+    treasury_file.write_text("0.000000")
+
+    log_file = tmp_path / "log.csv"
+    row = {key: "" for key in COLUMNS}
+    row.update(
+        {
+            "date": "2025-01-01 00:00:00",
+            "pool": "Test Pool",
+            "chain": "base",
+            "score": "0.010000",
+            "capital_before": "100.000000",
+            "capital_after": "100.500000",
+            "treasury_delta": "0.000000",
+            "roi_daily": "0.500000",
+            "roi_total": "0.500000",
+            "pnl_daily": "0.500000",
+            "pnl_total": "0.500000",
+            "status": "executed|portfolio:onchain_disabled",
+        }
+    )
+    append_log(row, str(log_file))
+
+    monkeypatch.setattr(status_report, "CAPITAL_FILE", capital_file)
+    monkeypatch.setattr(status_report, "TREASURY_FILE", treasury_file)
+    monkeypatch.setattr(status_report, "STATE_FILE", state_path)
+    monkeypatch.setattr(status_report, "LOG_FILE", log_file)
+
+    for name in [
+        "ONCHAIN_ENABLED",
+        "PORTFOLIO_AUTOMATION_ENABLED",
+        "TREASURY_AUTOMATION_ENABLED",
+    ]:
+        monkeypatch.delenv(name, raising=False)
+
+    status_report.main(["--checklist"])
+
+    output = capsys.readouterr().out
+    assert "=== Checklist ===" in output
+    assert "Esecuzione on-chain: Disattivata" in output
+    assert "Portfolio automation: Disattivata" in output
+    assert "portfolio:onchain_disabled" in output
 
 def main():
     """Run all tests."""

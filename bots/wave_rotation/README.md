@@ -56,9 +56,37 @@ python3 bots/wave_rotation/report.py
   (`state.json`, `log.csv`, `capital.txt`) e segnala gli aspetti da completare,
   evidenziando ad esempio quando la tesoreria automatica è disattivata
   (`TREASURY_AUTOMATION_ENABLED=false`).
+  Aggiungi `--checklist` per ottenere subito l'elenco sintetico delle azioni
+  mancanti (utile per capire "cosa manca" prima della prossima esecuzione).
 ```
 
 Per schedulare via cron/Gelato usa `scripts/run_daily.sh` (che carica `.env` e redirige i log in `bots/wave_rotation/daily.log`).
+
+### Analisi del rendimento effettivo
+
+- Il file `log.csv` tiene traccia dei parametri realizzati per ogni ciclo, inclusa la quota realmente reinvestita dopo
+  l'applicazione della soglia `0.5 EUR` sulla tesoreria.
+- Per ottenere un riepilogo automatico dell'APY effettivo e della quota media reinvestita, esegui:
+
+  ```bash
+  python3 bots/wave_rotation/utils/reinvestment_simulator.py analyze-log
+  ```
+
+  Il comando produce una tabella con capitale iniziale/finale, profitti e versamenti in treasury per ogni ciclo, quindi stampa
+  un riepilogo JSON con:
+
+  - `apy_effective`: prodotto cumulativo dei rendimenti reinvestiti (∏ (1 + r_netto_i) − 1)
+  - `weighted_reinvest_ratio`: quota media ponderata effettivamente rimasta nel wallet
+  - `treasury_total`: ammontare cumulato versato alla tesoreria
+
+- Per simulare scenari alternativi (es. diverse serie di rendimenti o tassi di cambio), usa la modalità `simulate`:
+
+  ```bash
+  python3 bots/wave_rotation/utils/reinvestment_simulator.py simulate --capital 10 --returns 0.01,0.015,0.002
+  ```
+
+  L'output rispetta le stesse regole della strategia: 100% del capitale sempre investito e split 50/50 solo quando la quota
+  treasury eccede la soglia in EUR.
 
 ## On-chain
 

@@ -64,7 +64,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup tools
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: sudo apt-get update && sudo apt-get install -y jq gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "GH_TOKEN non disponibile" >&2
+            exit 1
+          fi
+          echo "${GH_TOKEN}" | gh auth login --with-token --hostname github.com
 
       - name: Resolve Beefy vaults (Base)
         env:
