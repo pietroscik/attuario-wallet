@@ -19,12 +19,16 @@ COLUMNS: Iterable[str] = (
     "r_net_daily",
     "r_net_interval",
     "r_realized",
+    "interval_multiplier",
+    "interval_profit",
+    "capital_gross_after",
     "roi_daily",
     "pnl_daily",
     "score",
     "capital_before",
     "capital_after",
     "treasury_delta",
+    "treasury_total",
     "status",
 )
 
@@ -74,6 +78,10 @@ def build_telegram_message(payload: Dict[str, float | str]) -> str:
     treasury_delta = float(payload.get("treasury_delta", 0.0))
     roi_daily = float(payload.get("roi_daily", 0.0))
     pnl_daily = float(payload.get("pnl_daily", 0.0))
+    interval_multiplier = float(payload.get("interval_multiplier", 1.0))
+    interval_profit = float(payload.get("interval_profit", 0.0))
+    capital_gross_after = float(payload.get("capital_gross_after", capital_after))
+    reinvest_ratio = float(payload.get("reinvest_ratio", 1.0))
     score = float(payload.get("score", 0.0))
     score_previous = float(payload.get("score_previous", 0.0))
     score_delta = float(payload.get("score_delta", 0.0))
@@ -81,16 +89,34 @@ def build_telegram_message(payload: Dict[str, float | str]) -> str:
     lines = [header]
     lines.append(
         "📈 Previsto: "
-        f"APY {apy:.2%} | r₍daily₎ {r_net_daily:.4%} | r₍interval₎ {r_net_interval:.4%}"
+        f"APY annuo {apy:.2%} | r₍daily₎ {r_net_daily:.4%} (comp.) | r₍interval₎ {r_net_interval:.4%}"
     )
-    lines.append(f"📊 Realizzato: r₍interval₎ {r_realized:.4%}")
-
     lines.append(
-        f"💰 Capitale: {capital_before:.6f} ETH → {capital_after:.6f} ETH"
+        f"📊 Realizzato: r₍interval₎ {r_realized:.4%} | moltiplicatore ×{interval_multiplier:.6f}"
+    )
+    lines.append(
+        f"💵 Rendimento ciclo: ×{interval_multiplier:.6f} | Profitto {interval_profit:+.6f} ETH"
+    )
+
+    reinvest_pct = reinvest_ratio * 100.0
+    if reinvest_ratio >= 0.999:
+        capital_line = (
+            f"💰 Capitale reinvestito: {capital_before:.6f} ETH → {capital_after:.6f} ETH"
+        )
+    else:
+        capital_line = (
+            "💰 Capitale reinvestito ("
+            f"{reinvest_pct:.1f}% profitto): {capital_before:.6f} ETH → {capital_after:.6f} ETH"
+        )
+    lines.append(capital_line)
+    lines.append(
+        f"💵 Valore a riscatto: {capital_before:.6f} ETH × {interval_multiplier:.6f} = {capital_gross_after:.6f} ETH"
     )
     treasury_label = "+" if treasury_delta >= 0 else ""
     lines.append(f"🏦 Treasury {treasury_label}{treasury_delta:.6f} ETH")
-    lines.append(f"📆 ROI giornaliero: {roi_daily:.3f}% | PnL: {pnl_daily:.6f} ETH")
+    lines.append(
+        f"📆 ROI patrimoniale (giorno): {roi_daily:.3f}% | PnL complessivo: {pnl_daily:.6f} ETH"
+    )
 
     delta_sign = "+" if score_delta >= 0 else ""
     lines.append(
