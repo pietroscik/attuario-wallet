@@ -30,7 +30,7 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 try:
     from dotenv import load_dotenv
@@ -492,22 +492,26 @@ def _corrections_status(
     return items
 
 
-def _build_report(json_mode: bool = False) -> Dict[str, List[Dict[str, object]]]:
+def _collect_sections() -> List[Tuple[str, List[StatusItem]]]:
     state = _load_json(STATE_FILE) or {}
     last_log = _read_last_log_row(LOG_FILE)
 
-    deploy_items = _deploy_status(state or None)
-    investment_items = _investment_status(state or None, last_log)
-    corrections_items = _corrections_status(state or None, last_log)
+    sections: List[Tuple[str, List[StatusItem]]] = [
+        ("Deploy", _deploy_status(state or None)),
+        ("Investment", _investment_status(state or None, last_log)),
+        ("Corrections", _corrections_status(state or None, last_log)),
+    ]
+    return sections
 
-    if json_mode:
-        return {
-            "deploy": [item.to_dict() for item in deploy_items],
-            "investment": [item.to_dict() for item in investment_items],
-            "corrections": [item.to_dict() for item in corrections_items],
-        }
 
-    def _print_section(title: str, rows: Iterable[StatusItem]) -> None:
+def _sections_to_json(sections: List[Tuple[str, List[StatusItem]]]) -> Dict[str, List[Dict[str, object]]]:
+    return {
+        title.lower(): [item.to_dict() for item in items] for title, items in sections
+    }
+
+
+def _print_sections(sections: List[Tuple[str, List[StatusItem]]]) -> None:
+    for title, rows in sections:
         print(f"=== {title} ===")
         for item in rows:
             icon = SEVERITY_ICON.get(item.severity, "•")
@@ -517,18 +521,20 @@ def _build_report(json_mode: bool = False) -> Dict[str, List[Dict[str, object]]]
             print(line)
         print()
 
-    _print_section("Deploy", deploy_items)
-    _print_section("Investment", investment_items)
-    _print_section("Corrections", corrections_items)
 
-    return {
-        "deploy": [item.to_dict() for item in deploy_items],
-        "investment": [item.to_dict() for item in investment_items],
-        "corrections": [item.to_dict() for item in corrections_items],
-    }
+def _build_checklist(sections: List[Tuple[str, List[StatusItem]]]) -> List[str]:
+    actionable: List[str] = []
+    for title, items in sections:
+        for item in items:
+            if item.severity in {"warn", "error"}:
+                entry = f"[{title}] {item.label}: {item.value}"
+                if item.hint:
+                    entry += f" — {item.hint}"
+                actionable.append(entry)
+    return actionable
 
 
-def main() -> None:
+def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(
         description="Valuta lo stato operativo della strategia Wave Rotation",
     )
@@ -537,11 +543,29 @@ def main() -> None:
         action="store_true",
         help="Restituisce il report in formato JSON",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--checklist",
+        action="store_true",
+        help="Mostra un riepilogo sintetico delle azioni mancanti",
+    )
+    args = parser.parse_args(argv)
 
-    report = _build_report(json_mode=args.json)
+    sections = _collect_sections()
+
     if args.json:
-        print(json.dumps(report, indent=2, ensure_ascii=False))
+        payload = _sections_to_json(sections)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        _print_sections(sections)
+
+    if args.checklist:
+        entries = _build_checklist(sections)
+        print("=== Checklist ===")
+        if entries:
+            for entry in entries:
+                print(f"- {entry}")
+        else:
+            print("- Nessuna azione pendente ✅")
 
 
 if __name__ == "__main__":
