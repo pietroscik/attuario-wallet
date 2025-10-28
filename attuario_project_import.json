@@ -1,0 +1,67 @@
+[
+  {
+    "Title": "Centralizzare configurazioni via .env / YAML",
+    "Status": "To Do",
+    "Phase": "Fase 1 - Core Production"
+  },
+  {
+    "Title": "Logging avanzato (livelli strutturati)",
+    "Status": "To Do",
+    "Phase": "Fase 1 - Core Production"
+  },
+  {
+    "Title": "Aggiungere test Solidity (Hardhat)",
+    "Status": "To Do",
+    "Phase": "Fase 1 - Core Production"
+  },
+  {
+    "Title": "Stima gas nei cicli simulati",
+    "Status": "To Do",
+    "Phase": "Fase 1 - Core Production"
+  },
+  {
+    "Title": "Documentazione tecnica + diagrammi mermaid",
+    "Status": "To Do",
+    "Phase": "Fase 1 - Core Production"
+  },
+  {
+    "Title": "Integrazione Streamlit dashboard",
+    "Status": "To Do",
+    "Phase": "Fase 2 - Dashboard & UI"
+  },
+  {
+    "Title": "Upload CSV logs per analisi retroattiva",
+    "Status": "To Do",
+    "Phase": "Fase 2 - Dashboard & UI"
+  },
+  {
+    "Title": "Export dati analizzati (JSON / CSV)",
+    "Status": "To Do",
+    "Phase": "Fase 2 - Dashboard & UI"
+  },
+  {
+    "Title": "Grafici APY / capitale nel tempo",
+    "Status": "To Do",
+    "Phase": "Fase 2 - Dashboard & UI"
+  },
+  {
+    "Title": "Deploy testnet di StrategyManager.sol",
+    "Status": "To Do",
+    "Phase": "Fase 3 - DeFi Expansion"
+  },
+  {
+    "Title": "Supporto multi-strategy",
+    "Status": "To Do",
+    "Phase": "Fase 3 - DeFi Expansion"
+  },
+  {
+    "Title": "Integrazione oracle Chainlink",
+    "Status": "To Do",
+    "Phase": "Fase 3 - DeFi Expansion"
+  },
+  {
+    "Title": "Auto-claim tesoreria periodica",
+    "Status": "To Do",
+    "Phase": "Fase 3 - DeFi Expansion"
+  }
+]
