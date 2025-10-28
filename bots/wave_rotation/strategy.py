@@ -620,11 +620,18 @@ def main() -> None:
         realized_interval_profit / capital_before if capital_before > 0 else 0.0
     )
 
+    capital_basis_start = capital_start_day
+    capital_basis_end = capital_after
+    pnl_capital = capital_basis_end - capital_basis_start
+    roi_capital_pct = (
+        (pnl_capital / capital_basis_start) * 100 if capital_basis_start else 0.0
+    )
+
     total_assets_after = capital_after + treasury_total
     total_assets_start = capital_start_day + treasury_start_day
-    pnl_daily = total_assets_after - total_assets_start
-    roi_daily_pct = (
-        (pnl_daily / total_assets_start) * 100 if total_assets_start else 0.0
+    pnl_total = total_assets_after - total_assets_start
+    roi_total_pct = (
+        (pnl_total / total_assets_start) * 100 if total_assets_start else 0.0
     )
 
     row = {
@@ -639,8 +646,10 @@ def main() -> None:
         "interval_multiplier": f"{realized_interval_multiplier:.6f}",
         "interval_profit": f"{realized_interval_profit:.6f}",
         "capital_gross_after": f"{capital_gross_after:.6f}",
-        "roi_daily": f"{roi_daily_pct:.6f}",
-        "pnl_daily": f"{pnl_daily:.6f}",
+        "roi_daily": f"{roi_capital_pct:.6f}",
+        "roi_total": f"{roi_total_pct:.6f}",
+        "pnl_daily": f"{pnl_capital:.6f}",
+        "pnl_total": f"{pnl_total:.6f}",
         "score": f"{working_pool['score']:.6f}",
         "capital_before": f"{capital_before:.6f}",
         "capital_after": f"{capital_after:.6f}",
@@ -664,8 +673,12 @@ def main() -> None:
         "capital_before": capital_before,
         "capital_after": capital_after,
         "treasury_delta": treasury_delta,
-        "roi_daily": roi_daily_pct,
-        "pnl_daily": pnl_daily,
+        "roi_daily": roi_capital_pct,
+        "roi_capital": roi_capital_pct,
+        "roi_total": roi_total_pct,
+        "pnl_daily": pnl_capital,
+        "pnl_capital": pnl_capital,
+        "pnl_total": pnl_total,
         "treasury_total": treasury_total,
         "reinvest_ratio": config.reinvest_ratio,
         "score": working_pool["score"],
