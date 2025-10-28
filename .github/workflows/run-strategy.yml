@@ -38,9 +38,27 @@ jobs:
       BEEFY_WETH_USDT_VAULT: ${{ secrets.BEEFY_WETH_USDT_VAULT }}
       
       # ERC-4626 vault addresses
-      WETH_YIELD_VAULT_BASE: ${{ vars.WETH_YIELD_VAULT_BASE || '' }}
+      WETH_YIELD_VAULT_BASE: ${{ vars.WETH_YIELD_VAULT_BASE || '0x38989BBA00BDF8181F4082995b3DEAe96163aC5D' }}
       CBBTC_ERC4626_VAULT: ${{ vars.CBBTC_ERC4626_VAULT || '' }}
       USDC_ERC4626_VAULT: ${{ vars.USDC_ERC4626_VAULT || '0xef417a2512C5a41f69AE4e021648b69a7CdE5D03' }}
+      
+      # Yearn vault addresses
+      YEARN_USDC_VAULT_BASE: ${{ vars.YEARN_USDC_VAULT_BASE || '' }}
+      YEARN_WETH_VAULT_BASE: ${{ vars.YEARN_WETH_VAULT_BASE || '' }}
+      YEARN_CBBTC_VAULT_BASE: ${{ vars.YEARN_CBBTC_VAULT_BASE || '' }}
+      
+      # Compound V3 (Comet) market addresses
+      COMET_USDC_MARKET_BASE: ${{ vars.COMET_USDC_MARKET_BASE || '0x46e6b214b524310239732D51387075E0e70970bf' }}
+      COMET_USDBC_MARKET_BASE: ${{ vars.COMET_USDBC_MARKET_BASE || '0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf' }}
+      
+      # Moonwell (Compound V2 fork) cToken addresses
+      MOONWELL_CBETH_CTOKEN: ${{ vars.MOONWELL_CBETH_CTOKEN || '0x3bf93770f2d4a794c3d9EBEfBAeBAE2a8f09A5E5' }}
+      MOONWELL_WETH_CTOKEN: ${{ vars.MOONWELL_WETH_CTOKEN || '0x628ff693426583D9a7FB391E54366292F509D457' }}
+      MOONWELL_USDC_CTOKEN: ${{ vars.MOONWELL_USDC_CTOKEN || '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22' }}
+      
+      # Morpho Blue vault addresses
+      MORPHO_USDC_VAULT_BASE: ${{ vars.MORPHO_USDC_VAULT_BASE || '0xef417a2512C5a41f69AE4e021648b69a7CdE5D03' }}
+      MORPHO_WETH_VAULT_BASE: ${{ vars.MORPHO_WETH_VAULT_BASE || '0x38989BBA00BDF8181F4082995b3DEAe96163aC5D' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +74,33 @@ jobs:
           scripts/resolve_beefy_vaults.sh
           echo "Beefy vaults (runtime):"
           env | grep -E '^BEEFY_.*_VAULT=' || true
+
+      - name: Resolve Yearn vaults (Base)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENV_NAME: copilot
+        run: |
+          scripts/resolve_yearn_vaults.sh
+          echo "Yearn vaults (runtime):"
+          env | grep -E '^YEARN_.*_VAULT=' || true
+
+      - name: Resolve Compound/Moonwell markets (Base)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENV_NAME: copilot
+        run: |
+          scripts/resolve_compound_markets.sh
+          echo "Compound/Moonwell markets (runtime):"
+          env | grep -E '^(COMET_|MOONWELL_)' || true
+
+      - name: Resolve ERC-4626 vaults (Base)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENV_NAME: copilot
+        run: |
+          scripts/resolve_erc4626_vaults.sh
+          echo "ERC-4626 vaults (runtime):"
+          env | grep -E '_ERC4626_VAULT=' || true
 
       - name: Setup Python
         uses: actions/setup-python@v5
