@@ -23,8 +23,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Default log level from environment or INFO
-DEFAULT_LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+# Valid log levels
+VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
+# Default log level from environment or INFO (validated)
+_raw_level = os.getenv("LOG_LEVEL", "INFO").upper()
+DEFAULT_LOG_LEVEL = _raw_level if _raw_level in VALID_LOG_LEVELS else "INFO"
 
 # Default log format with timestamp, level, module, and message
 DEFAULT_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"

@@ -568,11 +568,13 @@ Use this checklist to track implementation progress:
 
 ## 📚 Additional Resources
 
-- **Python Type Hints**: https://docs.python.org/3/library/typing.html
-- **Google Python Style Guide**: https://google.github.io/styleguide/pyguide.html
-- **Clean Code Principles**: https://gist.github.com/wojteklu/73c6914cc446146b8b533c0988cf8d29
-- **SQLite Best Practices**: https://www.sqlite.org/bestpractice.html
-- **Prometheus Python Client**: https://github.com/prometheus/client_python
+> **Note**: Links verified as of 2025-10-29. Please verify links are still active when consulting this documentation.
+
+- **Python Type Hints**: https://docs.python.org/3/library/typing.html (Official Python documentation)
+- **Google Python Style Guide**: https://google.github.io/styleguide/pyguide.html (Industry standard style guide)
+- **Clean Code Principles**: https://gist.github.com/wojteklu/73c6914cc446146b8b533c0988cf8d29 (Quick reference)
+- **SQLite Best Practices**: https://www.sqlite.org/bestpractice.html (Official SQLite documentation)
+- **Prometheus Python Client**: https://github.com/prometheus/client_python (Official client library)
 
 ---
 
