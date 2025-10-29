@@ -4,12 +4,13 @@ This guide explains how to configure and use the newly added pool configurations
 
 ## Overview
 
-The Wave Rotation strategy now supports 15 pools across 5 major DeFi categories:
+The Wave Rotation strategy now supports 21 pools across 6 major DeFi categories:
 - **4 Aave v3 Lending Pools**: WETH, USDC, cbBTC, cbETH
 - **5 Beefy/Aerodrome LP Pools**: USDC/cbBTC, USDC/USDT, WETH/USDC, cbETH/WETH, WETH/USDT
-- **3 ERC-4626 Vaults**: WETH yield, cbBTC vault, USDC vault
-- **1 Yearn Vault**: Yearn USDC su Base
-- **2 Compound-based Lending Markets**: Comet USDC e Moonwell cbETH
+- **5 ERC-4626 & Morpho Vaults**: WETH yield, cbBTC vault, USDC vault, Morpho USDC, Morpho WETH
+- **2 Yearn Vaults**: Yearn USDC e Yearn WETH su Base
+- **2 Compound v3 (Comet) Markets**: USDC e USDbC
+- **3 Moonwell cToken Markets**: cbETH, WETH, USDC
 
 ## Quick Start
 
@@ -24,75 +25,70 @@ python3 validate_pools.py
 
 This will show you which environment variables are missing.
 
-### 2. Set Environment Variables
-
-Copy `.env.example` to `.env` and fill in the required addresses:
+### 2. Populate Environment Variables
 
 ```bash
 cp .env.example .env
-# Edit .env with your preferred editor
+./scripts/resolve_beefy_vaults.sh
+./scripts/resolve_yearn_vaults.sh
+./scripts/resolve_compound_markets.sh
+./scripts/resolve_erc4626_vaults.sh
 ```
 
-#### Required Token Addresses (Base Chain - ID: 8453)
+The scripts fetch the latest addresses from Beefy, Yearn (yDaemon), Morpho, Compound/Moonwell APIs and write them into `.env` (and optionally in GitHub Environment Variables). If an API call fails you can edit `.env` manually and rerun the validation.
 
-These are already set in `.env.example`:
+#### Token Addresses (Base Chain - ID: 8453)
+
+Already prefilled in `.env.example`:
 ```bash
 WETH_TOKEN_ADDRESS=0x4200000000000000000000000000000000000006
 USDC_BASE=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+USDBC_BASE=0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA
+USDT_BASE=0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2
 CBBTC_BASE=0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf
+CBETH_BASE=0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22
+WSTETH_BASE=0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452
 AAVE_POOL_ADDRESS_8453=0xA238Dd80C259a72e81d7e4664a9801593F98d1c5
 AERODROME_ROUTER_8453=0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43
 ```
 
-#### Additional Token Addresses to Set
+#### Auto-resolved Vaults & Markets
 
+The scripts populate (or refresh) the following variables:
 ```bash
-# You need to find and set these:
-USDT_BASE=          # USDT token address on Base
-CBETH_BASE=         # Coinbase ETH token address on Base
-WSTETH_BASE=        # Wrapped staked ETH address on Base (if available)
+# Beefy vaults
+BEEFY_USDC_CBBTC_VAULT=0x...
+BEEFY_USDC_USDT_VAULT=0x...
+BEEFY_WETH_USDC_VAULT=0x...
+BEEFY_CBETH_WETH_VAULT=0x...
+BEEFY_WETH_USDT_VAULT=0x...
+
+# ERC-4626 & Morpho vaults
+WETH_YIELD_VAULT_BASE=0x38989BBA00BDF8181F4082995b3DEAe96163aC5D
+CBBTC_ERC4626_VAULT=0x...
+USDC_ERC4626_VAULT=0xef417a2512C5a41f69AE4e021648b69a7CdE5D03
+MORPHO_USDC_VAULT_BASE=0xef417a2512C5a41f69AE4e021648b69a7CdE5D03
+MORPHO_WETH_VAULT_BASE=0x38989BBA00BDF8181F4082995b3DEAe96163aC5D
+
+# Yearn vaults (via yDaemon)
+YEARN_USDC_VAULT_BASE=0xef417a2512C5a41f69AE4e021648b69a7CdE5D03
+YEARN_WETH_VAULT_BASE=0x38989BBA00BDF8181F4082995b3DEAe96163aC5D
+
+# Compound / Moonwell markets
+COMET_USDC_MARKET_BASE=0x46e6b214b524310239732D51387075E0e70970bf
+COMET_USDBC_MARKET_BASE=0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf
+MOONWELL_CBETH_CTOKEN=0x3bf93770f2d4a794c3d9EBEfBAeBAE2a8f09A5E5
+MOONWELL_WETH_CTOKEN=0x628ff693426583D9a7FB391E54366292F509D457
+MOONWELL_USDC_CTOKEN=0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22
 ```
 
-#### Vault Addresses to Set
+### 3. Manual Overrides (Optional)
 
-You need to research and set the actual vault addresses on Base:
+If an API endpoint is unavailable you can still populate values manually:
 
-```bash
-# Beefy Vaults (find on Beefy Finance)
-BEEFY_USDC_USDT_VAULT=
-BEEFY_WETH_USDC_VAULT=
-BEEFY_CBETH_WETH_VAULT=
-BEEFY_WETH_USDT_VAULT=
-
-# ERC-4626 Vaults (depends on your chosen protocols)
-WETH_YIELD_VAULT_BASE=
-CBBTC_ERC4626_VAULT=
-USDC_ERC4626_VAULT=
-
-# Yearn Vaults
-YEARN_USDC_VAULT_BASE=
-
-# Compound / Moonwell Markets
-COMET_USDC_MARKET_BASE=
-MOONWELL_CBETH_CTOKEN=
-```
-
-### 3. Find Vault Addresses
-
-#### For Beefy Vaults:
-1. Visit https://app.beefy.com/
-2. Select "Base" network
-3. Search for the desired pool (e.g., "USDC-USDT" or "ETH-USDC")
-4. Click on the vault and copy its contract address
-5. Add it to your `.env` file
-
-#### For ERC-4626 Vaults:
-1. Identify which ERC-4626 compliant vaults are available on Base
-2. Popular options include:
-   - Yearn Finance vaults
-   - Morpho vaults
-   - Custom protocol vaults
-3. Get the vault contract address from their respective platforms
+- **Beefy Vaults**: visita https://app.beefy.com/ → chain “Base” → apri il vault (es. “USDC-USDT”) → copia l’indirizzo → aggiorna la variabile `BEEFY_*_VAULT`.  
+- **ERC-4626/Morpho Vaults**: verifica l’indirizzo sulla dashboard del protocollo (Yearn, Morpho, ecc.) oppure sulla registry https://erc4626.info/.  
+- **Comet/Moonwell Markets**: recupera gli address ufficiali dalla documentazione Chainlight, Compound o Moonwell e imposta `COMET_*` / `MOONWELL_*_CTOKEN`.
 
 ### 4. Validate Configuration
 
@@ -142,12 +138,14 @@ Provide liquidity on Aerodrome DEX and stake LP tokens in Beefy:
 **Advantages**: Higher yields from trading fees + farming
 **Disadvantages**: Impermanent loss risk, requires both tokens
 
-### ERC-4626 Vaults
+### ERC-4626 & Morpho Vaults
 
-Standard vault interface for various yield strategies:
+Standard ERC-4626 interface utilizzata da vault Yearn/Morpho:
 - `pool:base:erc4626:WETH-yield` - **WETH yield** via Morpho × Yearn vault
 - `pool:base:erc4626:cbBTC-vault` - Bitcoin yield strategies
 - `pool:base:erc4626:USDC-vault` - Stablecoin yield strategies
+- `pool:base:morpho:USDC` - Morpho Blue USDC (ERC-4626 compliant)
+- `pool:base:morpho:WETH` - Morpho Blue WETH (ERC-4626 compliant)
 
 **Advantages**: Professional strategy management, single token deposit
 **Disadvantages**: Strategy-dependent risk
@@ -156,6 +154,7 @@ Standard vault interface for various yield strategies:
 
 Vault tradizionali Yearn con depositi single-sided:
 - `pool:base:yearn:USDC` - Vault Yearn su Base per USDC
+- `pool:base:yearn:WETH` - Vault Yearn WETH integrato via yDaemon
 
 **Advantages**: Strategia attiva con auto-compounding
 **Disadvantages**: Dipendenza dalla gestione Yearn
@@ -164,7 +163,10 @@ Vault tradizionali Yearn con depositi single-sided:
 
 Mercati lending con interfaccia Compound v3/v2:
 - `pool:base:comet:USDC` - Mercato Comet per USDC
+- `pool:base:comet:USDbC` - Mercato Comet per USDbC (legacy stablecoin)
 - `pool:base:moonwell:cbETH` - Mercato Moonwell cToken per cbETH
+- `pool:base:moonwell:WETH` - Mercato Moonwell cToken per WETH
+- `pool:base:moonwell:USDC` - Mercato Moonwell cToken per USDC
 
 **Advantages**: Ulteriore diversificazione dei protocolli di lending
 **Disadvantages**: Rischi specifici dei mercati Compound (health factor, interessi variabili)
@@ -229,7 +231,10 @@ To add your own pool:
 1. Choose the appropriate adapter type:
    - `aave_v3` - for Aave v3 lending
    - `lp_beefy_aero` - for Beefy vaults on Aerodrome LPs
-   - `erc4626` - for ERC-4626 compatible vaults
+   - `erc4626` - for ERC-4626 compatible vaults (incl. Morpho)
+   - `yearn` - for Yearn vaults risolti via yDaemon
+   - `comet` - for Compound v3 / Comet markets
+   - `ctoken` - for Compound v2 style markets (Moonwell, Sonne, ecc.)
 
 2. Add configuration to `config.json`:
    ```json

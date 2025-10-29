@@ -297,8 +297,8 @@ python validate_adapters.py
 
 📋 VALIDATION RESULTS:
   Total pools configured: 21
-  ✅ Valid (all env vars set): 15
-  ⚠️  Invalid (missing env vars): 6
+  ✅ Valid (all env vars set): 21
+  ⚠️  Invalid (missing env vars): 0
 ```
 
 ## Copertura del Mercato

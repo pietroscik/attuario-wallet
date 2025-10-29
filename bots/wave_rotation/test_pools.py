@@ -43,7 +43,7 @@ def test_pool_count():
     pool_count = len(adapters)
     
     print(f"✓ Total pools configured: {pool_count}")
-    assert pool_count >= 15, f"Expected at least 15 pools, found {pool_count}"
+    assert pool_count >= 21, f"Expected at least 21 pools, found {pool_count}"
 
 
 def test_pool_categories():

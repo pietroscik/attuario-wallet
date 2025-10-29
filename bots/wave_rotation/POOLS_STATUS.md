@@ -1,126 +1,100 @@
 # Pools Status and Execution Guide
 
-## ✅ Pools Ready to Execute (8/15)
+## ✅ Pools Ready to Execute (21/21)
 
-These pools are fully configured and can execute immediately:
+Tutte le configurazioni su Base sono state validate con `validate_pools.py` (21/21 ready). Di seguito il dettaglio per categoria.
 
-### Aave v3 Lending (4 pools)
-1. **pool:base:aave-v3:WETH** - WETH lending ✅
-2. **pool:base:aave-v3:USDC** - USDC lending ✅
-3. **pool:base:aave-v3:cbBTC** - cbBTC lending ✅
-4. **pool:base:aave-v3:cbETH** - cbETH lending ✅
+### Aave v3 Lending (4 pool)
+1. **pool:base:aave-v3:WETH** — Lending WETH su Aave v3  
+2. **pool:base:aave-v3:USDC** — Lending USDC su Aave v3  
+3. **pool:base:aave-v3:cbBTC** — Lending cbBTC su Aave v3  
+4. **pool:base:aave-v3:cbETH** — Lending cbETH su Aave v3  
 
-### ERC-4626 Vaults (1 pool)
-5. **pool:base:erc4626:USDC-vault** - Morpho Yearn USDC vault ✅
-   - Address: 0xef417a2512C5a41f69AE4e021648b69a7CdE5D03
+### Beefy/Aerodrome LP (5 pool)
+1. **pool:base:beefy:USDC-cbBTC** — Vault Beefy USDC/cbBTC  
+2. **pool:base:beefy:USDC-USDT** — Vault stable/stable (`stable: true`)  
+3. **pool:base:beefy:WETH-USDC** — Vault ETH/stable principale  
+4. **pool:base:beefy:cbETH-WETH** — Vault LST cbETH/WETH  
+5. **pool:base:beefy:WETH-USDT** — Vault ETH/stable alternativo  
 
-## ⏳ Pools Needing Beefy Vault Addresses (5/15)
+Gli indirizzi dei vault `BEEFY_*_VAULT` vengono risolti dagli script in `scripts/resolve_beefy_vaults.sh` e salvati in `.env` / GitHub Environment.
 
-These pools are configured but need Beefy vault contract addresses:
+### ERC-4626 & Morpho Vaults (5 pool)
+1. **pool:base:erc4626:WETH-yield** — Vault WETH autocompound (Morpho × Yearn)  
+2. **pool:base:erc4626:cbBTC-vault** — Vault ERC-4626 su cbBTC  
+3. **pool:base:erc4626:USDC-vault** — Vault ERC-4626 su USDC  
+4. **pool:base:morpho:USDC** — Morpho Blue USDC (interface ERC-4626)  
+5. **pool:base:morpho:WETH** — Morpho Blue WETH (interface ERC-4626)  
 
-### Beefy/Aerodrome LP Pools
-6. **pool:base:beefy:USDC-cbBTC** - Needs BEEFY_USDC_CBBTC_VAULT
-7. **pool:base:beefy:USDC-USDT** - Needs BEEFY_USDC_USDT_VAULT (stable pair)
-8. **pool:base:beefy:WETH-USDC** - Needs BEEFY_WETH_USDC_VAULT
-9. **pool:base:beefy:cbETH-WETH** - Needs BEEFY_CBETH_WETH_VAULT (LST pair)
-10. **pool:base:beefy:WETH-USDT** - Needs BEEFY_WETH_USDT_VAULT
+Gli script `resolve_erc4626_vaults.sh` e `resolve_compound_markets.sh` popolano le variabili corrispondenti (`WETH_YIELD_VAULT_BASE`, `CBBTC_ERC4626_VAULT`, `MORPHO_*`).
 
-## ⏳ Pools Needing ERC-4626 Vault Addresses (2/15)
+### Yearn Vaults (2 pool)
+1. **pool:base:yearn:USDC** — Vault Yearn USDC su Base  
+2. **pool:base:yearn:WETH** — Vault Yearn WETH su Base  
 
-11. **pool:base:erc4626:WETH-yield** - Needs WETH_YIELD_VAULT_BASE
-12. **pool:base:erc4626:cbBTC-vault** - Needs CBBTC_ERC4626_VAULT
+Gli indirizzi vengono recuperati da `resolve_yearn_vaults.sh` via API yDaemon.
 
-## ⏳ Pools Needing Yearn Vault Addresses (1/15)
+### Compound v3 (Comet) Markets (2 pool)
+1. **pool:base:comet:USDC** — Mercato Comet USDC  
+2. **pool:base:comet:USDbC** — Mercato Comet USDbC (legacy stablecoin)  
 
-13. **pool:base:yearn:USDC** - Needs YEARN_USDC_VAULT_BASE
+Gli address `COMET_*` sono risolti automaticamente (`resolve_compound_markets.sh`).
 
-## ⏳ Pools Needing Compound Market Addresses (2/15)
+### Moonwell cToken Markets (3 pool)
+1. **pool:base:moonwell:cbETH** — cToken cbETH (Moonwell Base)  
+2. **pool:base:moonwell:WETH** — cToken WETH  
+3. **pool:base:moonwell:USDC** — cToken USDC  
 
-14. **pool:base:comet:USDC** - Needs COMET_USDC_MARKET_BASE
-15. **pool:base:moonwell:cbETH** - Needs MOONWELL_CBETH_CTOKEN
+Gli address `MOONWELL_*_CTOKEN` sono anch’essi popolati dai workflow/script.
 
-## How to Find Missing Addresses
+## Environment Recap
 
-### For Beefy Vaults
-1. Visit https://app.beefy.com/
-2. Select "Base" network from the chain selector
-3. Search for the desired pool (e.g., "USDC USDT", "WETH USDC")
-4. Click on the vault
-5. Copy the contract address from the vault details
-6. Add to `.env` file or GitHub Actions secrets
-
-### For ERC-4626 Vaults
-- **WETH yield**: Check Morpho/Yearn per il vault WETH OG su Base
-- **cbBTC vault**: Check ERC-4626 registry at https://erc4626.info/vaults/
-- Can also use Yearn, Morpho, or other ERC-4626 providers
+- `.env.example` contiene tutti i token address di Base (`USDC_BASE`, `USDBC_BASE`, `CBETH_BASE`, ecc.).  
+- Gli script di risoluzione (`scripts/resolve_*.sh`) valorizzano Beefy, Yearn, Morpho, Comet e Moonwell.  
+- In caso di failure API, è possibile impostare manualmente le variabili in `.env` o nei secret GitHub; la strategia continua comunque a funzionare con i valori già presenti.
 
 ## Running the Strategy
 
-### Local Execution
 ```bash
 cd bots/wave_rotation
 
-# Set environment variables
-export $(grep -v '^#' ../../.env.example | xargs)
+# 1. Popola/aggiorna le variabili (se necessario)
+./scripts/resolve_beefy_vaults.sh
+./scripts/resolve_yearn_vaults.sh
+./scripts/resolve_compound_markets.sh
+./scripts/resolve_erc4626_vaults.sh
 
-# Validate configuration
-python3 validate_pools.py
+# 2. Valida la configurazione
+python3 validate_pools.py  # => Summary: 21/21 pools ready
 
-# Run strategy (will use 8 available pools)
+# 3. Esegui i test di coerenza
+python3 test_pools.py
+
+# 4. Avvia la strategia
 python3 strategy.py
 ```
 
-### GitHub Actions Execution
-The workflow is configured with default values and will run automatically with:
-- All 4 Aave v3 pools ✅
-- 1 ERC-4626 pool (USDC) ✅
-- Beefy pools skipped if vault addresses not set
-- Yearn vault skipped if YEARN_USDC_VAULT_BASE not set
-- Compound pools skipped if COMET_USDC_MARKET_BASE / MOONWELL_CBETH_CTOKEN not set
-
-To add Beefy / Yearn / Compound addresses:
-1. Go to repository Settings → Environments → copilot
-2. Add variables/secrets for the missing vault or market addresses
-3. Workflow will automatically include those pools
-
 ## Strategy Behavior
 
-The Wave Rotation strategy will:
-1. ✅ Evaluate all pools with complete configurations
-2. ⏭️ Skip pools with missing vault addresses (graceful handling)
-3. 📊 Calculate scores for available pools
-4. 🎯 Select the pool with the best risk-adjusted return
-5. 💰 Execute allocation (50% reinvest, 50% treasury)
+La Wave Rotation strategy:
+- Valuta i 21 pool configurati, calcola score e rischio per ciascuno
+- Ordina per score e seleziona il migliore
+- Applica uno switch solo se il nuovo score è ≥1% rispetto all’attuale
+- Reinveste il 50% dei profitti e invia il restante 50% alla treasury
 
-## Pool Coverage Achieved
+## Copertura di Mercato
 
-Even with just the 8 ready pools, we cover:
-- ✅ **Lending**: 4 assets on Aave v3 (WETH, USDC, cbBTC, cbETH)
-- ✅ **Yield vault**: USDC on Morpho Yearn
-- ⏳ **Stable/stable**: USDC/USDT (needs vault address)
-- ⏳ **LST**: cbETH/WETH (needs vault address)
-- ⏳ **ETH/stable**: WETH/USDC, WETH/USDT (need vault addresses)
-- ⏳ **Yearn vault**: USDC Yearn vault (needs vault address)
-- ⏳ **Compound markets**: Comet USDC / Moonwell cbETH (need market addresses)
+- **Lending**: Aave v3 (4), Morpho (2), Comet (2), Moonwell (3)
+- **LP Farming**: Beefy + Aerodrome (5)
+- **Vault Strategies**: ERC-4626 (5) + Yearn (2)
+- **Stable/Stable**: USDC/USDT
+- **ETH/Stables**: WETH/USDC, WETH/USDT
+- **LST**: cbETH/WETH, cbETH lending
+- **BTC**: cbBTC lending, vault, LP
+- **Legacy Stable**: USDbC via Comet
 
-## Auto-Populated Addresses
+## Monitoring
 
-All token and protocol addresses are auto-populated in `.env.example` and GitHub Actions workflow:
-
-**Tokens:**
-- WETH: 0x4200000000000000000000000000000000000006
-- USDC: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-- USDT: 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2
-- cbBTC: 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf
-- cbETH: 0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22
-- wstETH: 0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452
-
-**Protocols:**
-- Aave Pool: 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5
-- Aerodrome Router: 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43
-
-## Conclusion
-
-**The system is immediately operational with 8/15 pools!**
-
-The remaining Beefy, Yearn and Compound addresses can be added incrementally without breaking existing functionality. The strategy will work with whatever pools are configured.
+- I workflow GitHub eseguono gli script di risoluzione a ogni run.  
+- `status_report.py` e `run_log.md` permettono di verificare gli switch effettuati.  
+- In caso di nuovi vault/mercati, aggiungere le chiavi corrispondenti e rilanciare gli script per mantenerle aggiornate.

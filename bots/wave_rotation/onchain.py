@@ -21,14 +21,18 @@ from web3.middleware.proof_of_authority import ExtraDataToPOAMiddleware
 
 # === Multi-RPC failover setup =============================================
 
-if os.getenv("RPC_URLS"):
-    RPCS = [url.strip() for url in os.getenv("RPC_URLS").split(",") if url.strip()]
-else:
+def _load_rpc_sources() -> list[str]:
+    urls = os.getenv("RPC_URLS")
+    if urls:
+        return [url.strip() for url in urls.split(",") if url.strip()]
     primary = os.getenv("RPC_URL")
     fallbacks = [
         url.strip() for url in os.getenv("RPC_FALLBACKS", "").split(",") if url.strip()
     ]
-    RPCS = [url for url in [primary] + fallbacks if url]
+    return [url for url in [primary] + fallbacks if url]
+
+
+RPCS: list[str] = _load_rpc_sources()
 
 # Defer RPC validation until actually needed
 # if not RPCS:
@@ -52,6 +56,7 @@ _current_index = 0
 _current_rpc_url = None
 _last_switch_reason = "-"
 _w3: Web3 | None = None
+_local_nonce: int | None = None
 
 
 def _make_w3(url: str) -> Web3:
@@ -66,7 +71,7 @@ def _make_w3(url: str) -> Web3:
 
 
 def _connect(start_index: int = 0) -> None:
-    global _w3, _current_index, _current_rpc_url
+    global _w3, _current_index, _current_rpc_url, _local_nonce
     if not RPCS:
         raise RuntimeError(
             "RPC configuration missing: set RPC_URL or RPC_URLS/RPC_FALLBACKS"
@@ -92,6 +97,7 @@ def _connect(start_index: int = 0) -> None:
             _w3 = candidate
             _current_index = idx
             _current_rpc_url = url
+            _local_nonce = None
             return
         except Exception as exc:  # pragma: no cover - failover path
             errors.append(f"{url}: {exc}")
@@ -131,8 +137,12 @@ def _rpc_try(fn, *args, **kwargs):
 # Lazy initialization - only connect when needed
 def _ensure_connected():
     """Ensure RPC is connected, connecting if necessary."""
-    global _w3
-    if _w3 is None and RPCS:
+    global _w3, RPCS
+    if _w3 is None:
+        if not RPCS:
+            RPCS = _load_rpc_sources()
+        if not RPCS:
+            return None
         _connect(0)
     return _w3
 
@@ -147,9 +157,23 @@ w3 = _w3  # type: ignore
 
 def get_current_rpc_url():
     """Get current RPC URL."""
-    if _w3 is None and RPCS:
-        _ensure_connected()
+    global RPCS
+    if _w3 is None:
+        if not RPCS:
+            RPCS = _load_rpc_sources()
+        if RPCS:
+            _ensure_connected()
     return _current_rpc_url
+
+
+def _next_nonce(w3: Web3, address: str) -> int:
+    global _local_nonce
+    network_nonce = _rpc_try(lambda: w3.eth.get_transaction_count(address, "pending"))
+    if _local_nonce is None or network_nonce > _local_nonce:
+        _local_nonce = network_nonce
+    else:
+        _local_nonce += 1
+    return _local_nonce
 
 # === ABI source setup (artifact | etherscan_v2 | embedded) =================
 
@@ -267,7 +291,9 @@ def _env_bool(name: str, default: bool = False) -> bool:
 def _load_config() -> Optional[OnchainConfig]:
     if not _env_bool("ONCHAIN_ENABLED", False):
         return None
-
+    global RPCS
+    if not RPCS:
+        RPCS = _load_rpc_sources()
     rpc_url = get_current_rpc_url() or os.getenv("RPC_URL") or (RPCS[0] if RPCS else None)
     private_key = os.getenv("PRIVATE_KEY")
     vault_address = os.getenv("VAULT_ADDRESS")
@@ -367,7 +393,7 @@ def get_available_capital_eth(reserve_eth: float = 0.004) -> Optional[float]:
 
 def _send_contract_tx(w3: Web3, account, tx_fn: ContractFunction, label: str) -> Optional[str]:
     try:
-        nonce = _rpc_try(lambda: w3.eth.get_transaction_count(account.address))
+        nonce = _next_nonce(w3, account.address)
         gas_estimate = _rpc_try(lambda: tx_fn.estimate_gas({"from": account.address}))
     except Exception as err:
         print(f"[onchain] {label} stima gas fallita: {err}")

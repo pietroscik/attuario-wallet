@@ -5,7 +5,7 @@
     "polygon",
     "solana"
   ],
-  "min_tvl_usd": 100000,
+  "min_tvl_usd": 1000,
   "delta_switch": 0.01,
   "reinvest_ratio": 0.5,
   "treasury_token": "USDC",
@@ -97,6 +97,14 @@
       "token1": "${USDT_BASE}",
       "slippage_bps": 50
     },
+    "pool:base:beefy:WETH-EURC": {
+      "type": "lp_beefy_aero",
+      "router": "${AERODROME_ROUTER_8453}",
+      "beefy_vault": "${BEEFY_WETH_EURC_VAULT}",
+      "token0": "${WETH_TOKEN_ADDRESS}",
+      "token1": "${EURC_BASE}",
+      "slippage_bps": 50
+    },
     "pool:base:erc4626:WETH-yield": {
       "type": "erc4626",
       "vault": "${WETH_YIELD_VAULT_BASE}",
@@ -110,6 +118,26 @@
     "pool:base:erc4626:USDC-vault": {
       "type": "erc4626",
       "vault": "${USDC_ERC4626_VAULT}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:erc4626:spark-usdc": {
+      "type": "erc4626",
+      "vault": "${SPARK_USDC_VAULT_BASE}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:erc4626:seamless-usdc": {
+      "type": "erc4626",
+      "vault": "${SEAMLESS_USDC_VAULT_BASE}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:erc4626:moonwell-usdc": {
+      "type": "erc4626",
+      "vault": "${MOONWELL_FLAGSHIP_USDC_VAULT_BASE}",
+      "asset": "${USDC_BASE}"
+    },
+    "pool:base:erc4626:steakhouse-prime-usdc": {
+      "type": "erc4626",
+      "vault": "${STEAKHOUSE_PRIME_USDC_VAULT_BASE}",
       "asset": "${USDC_BASE}"
     },
     "pool:base:yearn:USDC": {

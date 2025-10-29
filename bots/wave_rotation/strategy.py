@@ -30,6 +30,11 @@ try:  # Optional dependency – allows tests to import without network libs
 except ModuleNotFoundError:  # pragma: no cover - import guard branch
     requests = None  # type: ignore[assignment]
 
+try:  # Optional dependency for wallet inspection
+    from web3 import Web3
+except ModuleNotFoundError:  # pragma: no cover - import guard branch
+    Web3 = None  # type: ignore[assignment]
+
 try:
     from dotenv import load_dotenv
 except ModuleNotFoundError:  # pragma: no cover - fallback for minimal envs
@@ -58,6 +63,178 @@ LOG_FILE = BASE_DIR / "log.csv"
 
 DEFAULT_FX_EUR_PER_ETH = 3000.0
 DEFAULT_TREASURY_MIN_EUR = 0.5
+
+def _parse_env_set(name: str) -> set[str]:
+    raw = os.getenv(name, "")
+    items: set[str] = set()
+    if not raw:
+        return items
+    for part in raw.split(","):
+        entry = part.strip()
+        if entry:
+            items.add(entry.lower())
+    return items
+
+
+POOL_ALLOWLIST = _parse_env_set("POOL_ALLOWLIST")
+POOL_DENYLIST = _parse_env_set("POOL_DENYLIST")
+
+REQUIRED_TOKEN_FIELDS: Dict[str, Sequence[str]] = {
+    "erc4626": ("asset",),
+    "yearn": ("asset",),
+    "comet": ("asset",),
+    "ctoken": ("asset",),
+    "aave_v3": ("asset",),
+    "lp_beefy_aero": ("token0", "token1"),
+}
+
+ERC20_BALANCE_DECIMALS_ABI = json.loads(
+    """
+[
+  {
+    "constant": true,
+    "inputs": [{"name": "account", "type": "address"}],
+    "name": "balanceOf",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{"name": "", "type": "uint8"}],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
+"""
+)
+
+
+def _token_balance_threshold() -> float:
+    raw = os.getenv("POOL_TOKEN_MIN_BALANCE", "1e-6")
+    try:
+        return float(raw)
+    except ValueError:
+        return 1e-6
+
+
+def _extract_token_field(value: object, field_name: str) -> Optional[Tuple[str, str]]:
+    if value is None:
+        return None
+
+    label = field_name
+    env_name = None
+    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+        env_name = value[2:-1]
+        resolved = os.getenv(env_name, "")
+        if env_name:
+            label = env_name
+    else:
+        resolved = value
+
+    if not isinstance(resolved, str):
+        return None
+
+    resolved = resolved.strip()
+    if not resolved or not resolved.startswith("0x"):
+        return None
+
+    try:
+        checksum = Web3.to_checksum_address(resolved) if Web3 is not None else resolved
+    except Exception:
+        checksum = resolved
+
+    addr_lower = checksum.lower()
+
+    if env_name is None and label == field_name:
+        for name, env_val in os.environ.items():
+            if isinstance(env_val, str) and env_val.lower() == addr_lower:
+                label = name
+                break
+
+    return addr_lower, label
+
+
+def _adapter_required_tokens(adapter_cfg: Optional[Dict[str, object]]) -> List[Tuple[str, str]]:
+    if not adapter_cfg:
+        return []
+    adapter_type = str(adapter_cfg.get("type") or "").lower()
+    fields = REQUIRED_TOKEN_FIELDS.get(adapter_type, ())
+    tokens: List[Tuple[str, str]] = []
+    for field in fields:
+        spec = _extract_token_field(adapter_cfg.get(field), field)
+        if spec:
+            tokens.append(spec)
+    return tokens
+
+
+def _gather_required_token_labels(config: StrategyConfig) -> Dict[str, str]:
+    labels: Dict[str, str] = {}
+    for adapter_cfg in config.adapters.values():
+        for addr, label in _adapter_required_tokens(adapter_cfg):
+            labels.setdefault(addr, label)
+    return labels
+
+
+def _get_adapter_config(config: StrategyConfig, pool_id: str) -> Optional[Dict[str, object]]:
+    if pool_id in config.adapters:
+        return config.adapters[pool_id]
+    key_with_prefix = pool_id if pool_id.startswith("pool:") else f"pool:{pool_id}"
+    if key_with_prefix in config.adapters:
+        return config.adapters[key_with_prefix]
+    key_without_prefix = pool_id[5:] if pool_id.startswith("pool:") else pool_id
+    if key_without_prefix in config.adapters:
+        return config.adapters[key_without_prefix]
+    return None
+
+
+def collect_wallet_assets(
+    config: StrategyConfig,
+    w3,
+    account_address: Optional[str],
+) -> Tuple[Dict[str, float], Dict[str, str]]:
+    token_labels = dict(_gather_required_token_labels(config))
+    token_labels["native"] = "ETH"
+    balances: Dict[str, float] = {key: 0.0 for key in token_labels}
+
+    if w3 is None or Web3 is None or account_address is None:
+        return balances, token_labels
+
+    try:
+        checksum_account = Web3.to_checksum_address(account_address)
+    except Exception:
+        checksum_account = account_address
+
+    try:
+        native_balance = w3.eth.get_balance(checksum_account)
+        balances["native"] = float(Web3.from_wei(native_balance, "ether"))
+    except Exception:
+        pass
+
+    decimals_cache: Dict[str, int] = {}
+    for addr, label in token_labels.items():
+        if addr == "native":
+            continue
+        try:
+            checksum_token = Web3.to_checksum_address(addr)
+        except Exception:
+            checksum_token = addr
+        try:
+            contract = w3.eth.contract(address=checksum_token, abi=ERC20_BALANCE_DECIMALS_ABI)
+            if addr not in decimals_cache:
+                decimals_cache[addr] = contract.functions.decimals().call()
+            decimals = decimals_cache[addr]
+            raw_balance = contract.functions.balanceOf(checksum_account).call()
+            balances[addr] = float(raw_balance) / (10 ** decimals)
+        except Exception:
+            balances.setdefault(addr, 0.0)
+            continue
+
+    return balances, token_labels
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -251,6 +428,8 @@ def select_best_pool(
     state: StrategyState,
     _w3,
     _capital_hint_eth: float,
+    wallet_assets: Optional[Dict[str, float]] = None,
+    token_labels: Optional[Dict[str, str]] = None,
 ) -> Tuple[Dict[str, object] | None, Dict[str, Dict[str, object]]]:
     def safe_float(value: object, default: float = 0.0) -> float:
         try:
@@ -271,6 +450,12 @@ def select_best_pool(
     candidates: List[Dict[str, object]] = []
     lookup: Dict[str, Dict[str, object]] = {}
     diagnostics: List[str] = []
+    missing_assets_summary: Dict[str, List[str]] = {}
+    eligible_ids: set[str] = set()
+
+    balances = wallet_assets or {}
+    labels = token_labels or {}
+    token_threshold = _token_balance_threshold()
 
     for idx, pool in enumerate(pools):
         pool_id = str(pool.get("pool_id") or "").strip()
@@ -307,20 +492,68 @@ def select_best_pool(
 
         lookup[pool_id] = candidate
 
+        pool_id_key = pool_id.lower()
+
+        if POOL_ALLOWLIST and pool_id_key not in POOL_ALLOWLIST:
+            diagnostics.append(f"{pool_id}:denied(allowlist)")
+            continue
+        if POOL_DENYLIST and pool_id_key in POOL_DENYLIST:
+            diagnostics.append(f"{pool_id}:denied(denylist)")
+            continue
+
+        adapter_cfg = _get_adapter_config(config, pool_id)
+        if not adapter_cfg:
+            diagnostics.append(f"{pool_id}:no_adapter")
+            continue
+
+        requirements = _adapter_required_tokens(adapter_cfg)
+        if requirements:
+            missing_local: List[str] = []
+            for addr, label in requirements:
+                if addr == "native":
+                    balance = balances.get("native", 0.0)
+                    label_text = labels.get("native", "ETH")
+                else:
+                    balance = balances.get(addr, 0.0)
+                    label_text = labels.get(addr, label)
+                if balance <= token_threshold:
+                    missing_local.append(label_text)
+            if missing_local:
+                missing_assets_summary[pool_id] = missing_local
+                diagnostics.append(f"{pool_id}:missing:{'+'.join(missing_local)}")
+                continue
+
         if tvl_value >= min_tvl:
             candidates.append(candidate)
+            eligible_ids.add(pool_id)
         else:
             diagnostics.append(f"{pool_id or '?'}@{pool.get('chain', '?')}:tvl<{min_tvl:.0f}")
 
     if not candidates:
         if diagnostics:
             lookup["__diagnostics__"] = diagnostics
+        if missing_assets_summary:
+            lookup["__missing_assets__"] = missing_assets_summary
         return None, lookup
 
     ranking = sorted(candidates, key=lambda item: item["score"], reverse=True)
     best = ranking[0]
 
     current = lookup.get(state.pool_id) if state.pool_id else None
+    if current:
+        current_id = str(current.get("pool_id") or "").lower()
+        if POOL_ALLOWLIST and current_id not in POOL_ALLOWLIST:
+            diagnostics.append(f"{current.get('pool_id')}:drop(allowlist)")
+            current = None
+        elif POOL_DENYLIST and current_id in POOL_DENYLIST:
+            diagnostics.append(f"{current.get('pool_id')}:drop(denylist)")
+            current = None
+        elif current.get("pool_id") not in eligible_ids:
+            diagnostics.append(f"{current.get('pool_id')}:drop(ineligible)")
+            current = None
+
+    if missing_assets_summary:
+        lookup["__missing_assets__"] = missing_assets_summary
     min_delta = float(config.delta_switch)
 
     if should_switch(best, current, min_delta=min_delta, last_switch_ts=state.last_switch_ts):
@@ -483,7 +716,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     interval_factor = interval_seconds / 86400.0
 
     signer_ctx = get_signer_context()
-    w3 = signer_ctx[1] if signer_ctx else None
+    w3 = None
+    account = None
+    if signer_ctx:
+        _, w3, account = signer_ctx
 
     config_dict = {
         "chains": config.chains,
@@ -500,6 +736,14 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     reserve_eth = float(os.getenv("GAS_RESERVE_ETH", "0.004"))
     available_onchain = get_available_capital_eth(reserve_eth)
+    wallet_balances: Dict[str, float] = {}
+    wallet_labels: Dict[str, str] = {}
+    account_address = account.address if account is not None else None
+    wallet_balances, wallet_labels = collect_wallet_assets(
+        config,
+        w3,
+        account_address,
+    )
 
     capital_file_exists = CAPITAL_FILE.exists()
     capital_hint_eth = load_decimal_file(CAPITAL_FILE, 100.0)
@@ -507,7 +751,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         capital_hint_eth = available_onchain
         store_decimal_file(CAPITAL_FILE, capital_hint_eth)
 
-    selected, candidate_map = select_best_pool(pools, config, state, w3, capital_hint_eth)
+    selected, candidate_map = select_best_pool(
+        pools,
+        config,
+        state,
+        w3,
+        capital_hint_eth,
+        wallet_balances,
+        wallet_labels,
+    )
     if not selected:
         diagnostics = candidate_map.get("__diagnostics__") if candidate_map else None
         detail = ""
@@ -517,6 +769,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         print(msg)
         send_telegram(msg, config)
         return
+    missing_assets_notes = candidate_map.get("__missing_assets__") if candidate_map else None
+    if missing_assets_notes:
+        parts = []
+        for pid, items in missing_assets_notes.items():
+            parts.append(f"{pid}: {', '.join(sorted(set(items)))}")
+        if parts:
+            print("ℹ️ Pool non allocabili per mancanza asset:", "; ".join(parts))
 
     metadata_bits = [
         f"scope={config_dict['search_scope']}",

@@ -146,7 +146,7 @@ def test_chain_coverage():
     print(f"🎯 Chains in config: {chains}")
     
     # We should have significant Base coverage
-    if chain_counts.get("base", 0) < 15:
+    if chain_counts.get("base", 0) < 21:
         print("❌ Insufficient Base chain coverage")
         return False
     

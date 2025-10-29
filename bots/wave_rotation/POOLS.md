@@ -86,6 +86,16 @@ These pools use the ERC-4626 vault standard for various yield strategies.
 - **Asset**: USDC
 - **Description**: Vault strategy for USDC yield generation
 
+#### `pool:base:morpho:USDC`
+- **Type**: ERC-4626 Vault (Morpho Blue)
+- **Asset**: USDC
+- **Description**: Deposito Morpho Blue su USDC con interfaccia ERC-4626
+
+#### `pool:base:morpho:WETH`
+- **Type**: ERC-4626 Vault (Morpho Blue)
+- **Asset**: WETH
+- **Description**: Deposito Morpho Blue su WETH con interfaccia ERC-4626
+
 ### 4. Yearn Vaults
 
 Yearn-style vaults that expose a deposit/withdraw interface similar to ERC20 tokens.
@@ -94,6 +104,11 @@ Yearn-style vaults that expose a deposit/withdraw interface similar to ERC20 tok
 - **Type**: Yearn Vault
 - **Asset**: USDC
 - **Description**: Deposita USDC in un vault Yearn su Base per rendimento attivo
+
+#### `pool:base:yearn:WETH`
+- **Type**: Yearn Vault
+- **Asset**: WETH
+- **Description**: Deposita WETH nel vault Yearn dedicato su Base
 
 ### 5. Additional Lending Markets (Compound / Moonwell)
 
@@ -104,10 +119,25 @@ Markets basati su Compound v3 (Comet) e cTokens stile Compound v2.
 - **Asset**: USDC
 - **Description**: Fornisce USDC al mercato Comet per ottenere rendimento e ricompense
 
+#### `pool:base:comet:USDbC`
+- **Type**: Compound v3 (Comet)
+- **Asset**: USDbC
+- **Description**: Supporta il mercato Comet per USDbC (stablecoin legacy su Base)
+
 #### `pool:base:moonwell:cbETH`
 - **Type**: Moonwell / Compound v2 cToken
 - **Asset**: cbETH
 - **Description**: Deposita cbETH nel mercato Moonwell per accumulare interessi a tasso variabile
+
+#### `pool:base:moonwell:WETH`
+- **Type**: Moonwell / Compound v2 cToken
+- **Asset**: WETH
+- **Description**: Deposita WETH nel mercato Moonwell per accumulare interessi e reward
+
+#### `pool:base:moonwell:USDC`
+- **Type**: Moonwell / Compound v2 cToken
+- **Asset**: USDC
+- **Description**: Deposita USDC nel mercato Moonwell per rendimento su stablecoin
 
 ## Configuration Requirements
 
@@ -116,6 +146,7 @@ Each pool requires specific environment variables to be set:
 ### Token Addresses
 - `WETH_TOKEN_ADDRESS`: Native WETH on Base
 - `USDC_BASE`: Native USDC on Base
+- `USDBC_BASE`: Bridged USDbC on Base
 - `USDT_BASE`: USDT on Base
 - `CBBTC_BASE`: Coinbase Wrapped BTC on Base
 - `CBETH_BASE`: Coinbase Wrapped staked ETH on Base
@@ -123,10 +154,11 @@ Each pool requires specific environment variables to be set:
 
 ### Protocol Addresses
 - `AAVE_POOL_ADDRESS_8453`: Aave v3 Pool contract on Base
+- `AAVE_WETH_GATEWAY_8453`: WETH Gateway (optional, solo per depositi nativi)
 - `AERODROME_ROUTER_8453`: Aerodrome Router contract on Base
 
-### Vault Addresses
-Each Beefy and ERC-4626 pool requires its specific vault address:
+### Vault & Market Addresses
+Queste variabili vengono risolte dagli script di supporto oppure possono essere impostate manualmente:
 - `BEEFY_USDC_CBBTC_VAULT`
 - `BEEFY_USDC_USDT_VAULT`
 - `BEEFY_WETH_USDC_VAULT`
@@ -135,9 +167,15 @@ Each Beefy and ERC-4626 pool requires its specific vault address:
 - `WETH_YIELD_VAULT_BASE`
 - `CBBTC_ERC4626_VAULT`
 - `USDC_ERC4626_VAULT`
+- `MORPHO_USDC_VAULT_BASE`
+- `MORPHO_WETH_VAULT_BASE`
 - `YEARN_USDC_VAULT_BASE`
+- `YEARN_WETH_VAULT_BASE`
 - `COMET_USDC_MARKET_BASE`
+- `COMET_USDBC_MARKET_BASE`
 - `MOONWELL_CBETH_CTOKEN`
+- `MOONWELL_WETH_CTOKEN`
+- `MOONWELL_USDC_CTOKEN`
 
 ## Pool Selection Strategy
 
@@ -164,11 +202,11 @@ Where:
 |----------|-------|---------|
 | Lending (Aave v3) | 4 | Stable lending yield on various assets |
 | LP Pairs (Beefy/Aero) | 5 | Liquidity provision + farming rewards |
-| ERC-4626 Vaults | 3 | Specialized yield strategies |
-| Yearn Vaults | 1 | Yield vault con strategia attiva su USDC |
-| Compound v3 (Comet) | 1 | Lending single-sided con collateral isolato |
-| Compound v2 (cToken/Moonwell) | 1 | Lending tradizionale con cToken |
-| **Total** | **15** | Copertura DeFi multi-protocollo |
+| ERC-4626 & Morpho Vaults | 5 | Vault strategies e Morpho Blue |
+| Yearn Vaults | 2 | Yield vault con strategia attiva su USDC e WETH |
+| Compound v3 (Comet) | 2 | Lending single-sided con collateral isolato |
+| Compound v2 (Moonwell) | 3 | Lending tradizionale con cToken |
+| **Total** | **21** | Copertura DeFi multi-protocollo |
 
 ## Adapter Types
 
