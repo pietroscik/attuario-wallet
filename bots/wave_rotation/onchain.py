@@ -19,6 +19,8 @@ from web3 import HTTPProvider, Web3
 from web3.contract.contract import ContractFunction
 from web3.middleware.proof_of_authority import ExtraDataToPOAMiddleware
 
+from input_validation import validate_ethereum_address, validate_pool_name, validate_percentage, validate_positive_amount
+
 # === Multi-RPC failover setup =============================================
 
 def _load_rpc_sources() -> list[str]:
@@ -305,14 +307,13 @@ def _load_config() -> Optional[OnchainConfig]:
         print(f"[onchain] Valore CAPITAL_SCALE non valido: {scale_raw}")
         capital_scale = Decimal("1000000")
 
-    missing = [
-        name
-        for name, value in (
-            ("PRIVATE_KEY", private_key),
-            ("VAULT_ADDRESS", vault_address),
-        )
-        if not value
-    ]
+    # Security: Check for missing config without exposing sensitive values
+    missing = []
+    if not private_key:
+        missing.append("PRIVATE_KEY")
+    if not vault_address:
+        missing.append("VAULT_ADDRESS")
+    
     if missing:
         print(f"[onchain] Config mancante: {', '.join(missing)}")
         return None
@@ -426,6 +427,19 @@ def _send_contract_tx(w3: Web3, account, tx_fn: ContractFunction, label: str) ->
 # === Vault methods =========================================================
 
 def execute_strategy(pool_name: str, apy_percent: float, capital_amount: float) -> Optional[str]:
+    # Security: Validate inputs before blockchain transaction
+    if not validate_pool_name(pool_name):
+        print(f"[onchain] Invalid pool_name format: {pool_name[:50]}...")
+        return None
+    
+    if not validate_percentage(apy_percent, allow_negative=True):
+        print(f"[onchain] Invalid apy_percent: {apy_percent}")
+        return None
+    
+    if not validate_positive_amount(capital_amount):
+        print(f"[onchain] Invalid capital_amount: {capital_amount}")
+        return None
+    
     ctx = _prepare_contract()
     if ctx is None:
         return None
@@ -443,6 +457,11 @@ def execute_strategy(pool_name: str, apy_percent: float, capital_amount: float) 
 
 
 def update_active_pool(pool_name: str, crisis: bool) -> Optional[str]:
+    # Security: Validate pool name
+    if not validate_pool_name(pool_name):
+        print(f"[onchain] Invalid pool_name format: {pool_name[:50]}...")
+        return None
+    
     ctx = _prepare_contract()
     if ctx is None:
         return None

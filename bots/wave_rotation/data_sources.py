@@ -6,17 +6,49 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Iterable, List
+import time
+from typing import Any, Dict, Iterable, List, Optional
 
 try:  # Optional dependency – provide graceful degradation in test envs
     import requests
 except ModuleNotFoundError:  # pragma: no cover - import guard branch
     requests = None  # type: ignore[assignment]
 
+from constants import DEFAULT_OPERATIONAL_COST, DEFAULT_HTTP_TIMEOUT, DEFAULT_CACHE_TTL
+
 DEFILLAMA_API = os.getenv("DEFILLAMA_API", "https://yields.llama.fi")
 
+# Simple in-memory cache with TTL
+_cache: Dict[str, tuple[Any, float]] = {}
+_CACHE_TTL = float(os.getenv("CACHE_TTL_SECONDS", str(DEFAULT_CACHE_TTL)))
 
-def _safe_get(url: str, *, params: Dict[str, Any] | None = None, timeout: int = 25) -> Dict[str, Any] | None:
+
+def _get_from_cache(key: str) -> Optional[Any]:
+    """Get value from cache if not expired."""
+    if key not in _cache:
+        return None
+    
+    value, timestamp = _cache[key]
+    if time.time() - timestamp > _CACHE_TTL:
+        # Expired
+        del _cache[key]
+        return None
+    
+    return value
+
+
+def _set_cache(key: str, value: Any) -> None:
+    """Store value in cache with current timestamp."""
+    _cache[key] = (value, time.time())
+
+
+def _safe_get(url: str, *, params: Dict[str, Any] | None = None, timeout: int = DEFAULT_HTTP_TIMEOUT) -> Dict[str, Any] | None:
+    # Check cache first
+    cache_key = f"{url}:{str(params)}"
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached
+    
     if requests is None:
         print(f"[data] GET {url} skipped: requests not installed")
         return None
@@ -24,7 +56,11 @@ def _safe_get(url: str, *, params: Dict[str, Any] | None = None, timeout: int = 
     try:
         resp = requests.get(url, params=params, timeout=timeout)
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        
+        # Cache successful response
+        _set_cache(cache_key, data)
+        return data
     except Exception as exc:  # pragma: no cover - network failure path
         print(f"[data] GET {url} failed: {exc}")
         return None
@@ -52,8 +88,8 @@ def _extract_fee(raw: Dict[str, Any]) -> float:
             fee = None
     if isinstance(fee, (int, float)):
         return max(0.0, float(fee))
-    # default operational cost baseline (5 bps)
-    return 0.0005
+    # default operational cost baseline (from constants)
+    return DEFAULT_OPERATIONAL_COST
 
 
 def _normalize_defillama_pool(raw: Dict[str, Any]) -> Dict[str, Any]:

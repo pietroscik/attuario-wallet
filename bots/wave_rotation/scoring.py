@@ -8,6 +8,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from constants import DAYS_PER_YEAR, DEFAULT_OPERATIONAL_COST
+
 
 def daily_rate(apy: float) -> float:
     """Convert annual APY (decimal) to daily compounded rate."""
@@ -17,7 +19,7 @@ def daily_rate(apy: float) -> float:
         return 0.0
     if apy <= -0.99:
         return 0.0
-    return (1.0 + apy) ** (1.0 / 365.0) - 1.0
+    return (1.0 + apy) ** (1.0 / DAYS_PER_YEAR) - 1.0
 
 
 def _extract_cost(pool: dict) -> float:
@@ -31,7 +33,7 @@ def _extract_cost(pool: dict) -> float:
 
     # DefiLlama exposes fees as annual percentages. Convert to a daily cost so the
     # score operates on the same time basis as the APY-derived return.
-    return annual_cost / 365.0
+    return annual_cost / DAYS_PER_YEAR
 
 
 def daily_cost(pool: dict) -> float:
