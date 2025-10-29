@@ -1,0 +1,421 @@
+{
+  "_comment": "Sample configuration snippet for 50 new asset pools",
+  "_instructions": "Add these entries to the 'adapters' section in config.json",
+  "_note": "Replace placeholder addresses (0x...) with actual contract addresses from protocol documentation or explorers",
+  
+  "pool:base:uniswap-v2:WETH-X402": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${WETH_X402_LP}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${X402_TOKEN}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:HOOD-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${HOOD_WETH_LP}",
+    "token0": "${HOOD_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:PUMP-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${PUMP_WETH_LP}",
+    "token0": "${PUMP_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:CRCL-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${CRCL_WETH_LP}",
+    "token0": "${CRCL_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:TRUMP-WETH-1": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${TRUMP_WETH_LP_1}",
+    "token0": "${TRUMP_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:MSTR-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${MSTR_WETH_LP}",
+    "token0": "${MSTR_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:IP-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${IP_WETH_LP}",
+    "token0": "${IP_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:IMAGINE-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${IMAGINE_WETH_LP}",
+    "token0": "${IMAGINE_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:GRAYSCALE-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${GRAYSCALE_WETH_LP}",
+    "token0": "${GRAYSCALE_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:WETH-402GATE": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${WETH_402GATE_LP}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${FOURTWOGATE_TOKEN}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:GROK-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${GROK_WETH_LP}",
+    "token0": "${GROK_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:LIBRA-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${LIBRA_WETH_LP}",
+    "token0": "${LIBRA_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:LABUBU-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${LABUBU_WETH_LP}",
+    "token0": "${LABUBU_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:ANI-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${ANI_WETH_LP}",
+    "token0": "${ANI_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:COIN-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${COIN_WETH_LP}",
+    "token0": "${COIN_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:50501-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${FIFTYONEOH_WETH_LP}",
+    "token0": "${FIFTYONEOH_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:STOCK-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${STOCK_WETH_LP}",
+    "token0": "${STOCK_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:WETH-MIKA": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${WETH_MIKA_LP}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${MIKA_TOKEN}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:uniswap-v2:WETH-TSLA": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_BASE}",
+    "lp_token": "${WETH_TSLA_LP}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${TSLA_TOKEN}",
+    "slippage_bps": 100
+  },
+
+  "pool:base:aerodrome-slipstream:AVNT-USDC": {
+    "type": "aerodrome_slipstream",
+    "nft_manager": "${AERODROME_SLIPSTREAM_NFT_MANAGER}",
+    "token0": "${AVNT_TOKEN}",
+    "token1": "${USDC_BASE}",
+    "tick_spacing": 200,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-slipstream:WETH-USDC": {
+    "type": "aerodrome_slipstream",
+    "nft_manager": "${AERODROME_SLIPSTREAM_NFT_MANAGER}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${USDC_BASE}",
+    "tick_spacing": 200,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-slipstream:USDC-VFY": {
+    "type": "aerodrome_slipstream",
+    "nft_manager": "${AERODROME_SLIPSTREAM_NFT_MANAGER}",
+    "token0": "${USDC_BASE}",
+    "token1": "${VFY_TOKEN}",
+    "tick_spacing": 200,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-slipstream:USDC-VELVET": {
+    "type": "aerodrome_slipstream",
+    "nft_manager": "${AERODROME_SLIPSTREAM_NFT_MANAGER}",
+    "token0": "${USDC_BASE}",
+    "token1": "${VELVET_TOKEN}",
+    "tick_spacing": 200,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-slipstream:WETH-CBBTC": {
+    "type": "aerodrome_slipstream",
+    "nft_manager": "${AERODROME_SLIPSTREAM_NFT_MANAGER}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${CBBTC_BASE}",
+    "tick_spacing": 200,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-slipstream:EMP-WETH": {
+    "type": "aerodrome_slipstream",
+    "nft_manager": "${AERODROME_SLIPSTREAM_NFT_MANAGER}",
+    "token0": "${EMP_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "tick_spacing": 200,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-v1:USDC-EMT": {
+    "type": "aerodrome_v1",
+    "router": "${AERODROME_ROUTER_8453}",
+    "lp_token": "${USDC_EMT_LP}",
+    "token0": "${USDC_BASE}",
+    "token1": "${EMT_TOKEN}",
+    "stable": false,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-v1:WETH-W": {
+    "type": "aerodrome_v1",
+    "router": "${AERODROME_ROUTER_8453}",
+    "lp_token": "${WETH_W_LP}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${W_TOKEN}",
+    "stable": false,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-v1:WETH-TRAC": {
+    "type": "aerodrome_v1",
+    "router": "${AERODROME_ROUTER_8453}",
+    "lp_token": "${WETH_TRAC_LP}",
+    "token0": "${WETH_TOKEN_ADDRESS}",
+    "token1": "${TRAC_TOKEN}",
+    "stable": false,
+    "slippage_bps": 50
+  },
+
+  "pool:base:aerodrome-v1:EBTC-CBBTC": {
+    "type": "aerodrome_v1",
+    "router": "${AERODROME_ROUTER_8453}",
+    "lp_token": "${EBTC_CBBTC_LP}",
+    "token0": "${EBTC_TOKEN}",
+    "token1": "${CBBTC_BASE}",
+    "stable": false,
+    "slippage_bps": 50
+  },
+
+  "pool:base:beefy:ANON-WETH": {
+    "type": "lp_beefy_aero",
+    "router": "${AERODROME_ROUTER_8453}",
+    "beefy_vault": "${BEEFY_ANON_WETH_VAULT}",
+    "token0": "${ANON_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 50
+  },
+
+  "pool:base:beefy:CLANKER-WETH": {
+    "type": "lp_beefy_aero",
+    "router": "${AERODROME_ROUTER_8453}",
+    "beefy_vault": "${BEEFY_CLANKER_WETH_VAULT}",
+    "token0": "${CLANKER_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS}",
+    "slippage_bps": 50
+  },
+
+  "pool:base:uniswap-v3:CGN-USDC": {
+    "type": "uniswap_v3",
+    "nft_manager": "${UNISWAP_V3_NFT_MANAGER_BASE}",
+    "token0": "${CGN_TOKEN}",
+    "token1": "${USDC_BASE}",
+    "fee": 3000,
+    "tick_lower": -887220,
+    "tick_upper": 887220,
+    "slippage_bps": 50
+  },
+
+  "pool:bsc:beefy:COAI-USDT-1": {
+    "type": "beefy_vault",
+    "vault": "${BEEFY_COAI_USDT_VAULT_BSC}"
+  },
+
+  "pool:sonic:beefy:S-USDC": {
+    "type": "beefy_vault",
+    "vault": "${BEEFY_S_USDC_VAULT_SONIC}"
+  },
+
+  "pool:arbitrum:vaultcraft:VC-WETH": {
+    "_comment": "Vaultcraft may use ERC4626 standard",
+    "type": "erc4626",
+    "vault": "${VAULTCRAFT_VC_WETH_VAULT}",
+    "asset": "${WETH_TOKEN_ADDRESS_ARBITRUM}"
+  },
+
+  "pool:avalanche:yield-yak:WETH.E-KIGU": {
+    "_comment": "Yield Yak vaults typically follow ERC4626",
+    "type": "erc4626",
+    "vault": "${YIELD_YAK_WETH_KIGU_VAULT}",
+    "asset": "${WETH_E_TOKEN_AVALANCHE}"
+  },
+
+  "pool:ethereum:uniswap-v2:BABYGIRL-WETH": {
+    "type": "uniswap_v2",
+    "router": "${UNISWAP_V2_ROUTER_ETHEREUM}",
+    "lp_token": "${BABYGIRL_WETH_LP}",
+    "token0": "${BABYGIRL_TOKEN}",
+    "token1": "${WETH_TOKEN_ADDRESS_ETHEREUM}",
+    "slippage_bps": 100
+  },
+
+  "_comment_solana": "Solana pools require Solana SDK - placeholder only",
+  "pool:solana:raydium:TURTLE-DEX-USDC": {
+    "type": "raydium_amm",
+    "solana_rpc": "${SOLANA_RPC}",
+    "pool_id": "${RAYDIUM_TURTLE_DEX_USDC_POOL}",
+    "token_a_mint": "${TURTLE_DEX_TOKEN}",
+    "token_b_mint": "${USDC_SOLANA}"
+  },
+
+  "pool:solana:raydium:WSOL-NICKEL": {
+    "type": "raydium_amm",
+    "solana_rpc": "${SOLANA_RPC}",
+    "pool_id": "${RAYDIUM_WSOL_NICKEL_POOL}",
+    "token_a_mint": "${WSOL_SOLANA}",
+    "token_b_mint": "${NICKEL_TOKEN}"
+  },
+
+  "pool:solana:raydium:USD1-LIBERTY": {
+    "type": "raydium_amm",
+    "solana_rpc": "${SOLANA_RPC}",
+    "pool_id": "${RAYDIUM_USD1_LIBERTY_POOL}",
+    "token_a_mint": "${USD1_TOKEN}",
+    "token_b_mint": "${LIBERTY_TOKEN}"
+  },
+
+  "pool:solana:raydium:PIPPIN-USDC": {
+    "type": "raydium_amm",
+    "solana_rpc": "${SOLANA_RPC}",
+    "pool_id": "${RAYDIUM_PIPPIN_USDC_POOL}",
+    "token_a_mint": "${PIPPIN_TOKEN}",
+    "token_b_mint": "${USDC_SOLANA}"
+  },
+
+  "pool:solana:raydium:USD1-VALOR": {
+    "type": "raydium_amm",
+    "solana_rpc": "${SOLANA_RPC}",
+    "pool_id": "${RAYDIUM_USD1_VALOR_POOL}",
+    "token_a_mint": "${USD1_TOKEN}",
+    "token_b_mint": "${VALOR_TOKEN}"
+  },
+
+  "_comment_aptos": "Aptos pool requires Aptos SDK - placeholder only",
+  "pool:aptos:hyperion:APT-AMI": {
+    "type": "hyperion",
+    "aptos_rpc": "${APTOS_RPC}",
+    "pool_address": "${HYPERION_APT_AMI_POOL}",
+    "token_a": "${APT_TOKEN}",
+    "token_b": "${AMI_TOKEN}"
+  },
+
+  "_comment_remaining": "The following pools need placeholder adapters to be fully implemented",
+
+  "pool:base:balancer-v3:WETH-USDT-USDC": {
+    "type": "balancer_v3",
+    "vault": "${BALANCER_V3_VAULT_BASE}",
+    "pool_id": "${BALANCER_WETH_USDT_USDC_POOL_ID}"
+  },
+
+  "pool:base:spectra-v2:YVBAL-GHO-USR": {
+    "type": "spectra_v2",
+    "principal_token": "${SPECTRA_V2_YVBAL_GHO_USR_PRINCIPAL}",
+    "yield_token": "${SPECTRA_V2_YVBAL_GHO_USR_YIELD}"
+  },
+
+  "pool:linea:etherex-cl:CROAK-WETH": {
+    "type": "etherex_cl",
+    "nft_manager": "${ETHEREX_CL_NFT_MANAGER_LINEA}",
+    "token0": "${CROAK_TOKEN_LINEA}",
+    "token1": "${WETH_TOKEN_ADDRESS_LINEA}"
+  },
+
+  "pool:sonic:peapods:SCUSD": {
+    "type": "peapods_finance",
+    "market": "${PEAPODS_SCUSD_MARKET_SONIC}",
+    "asset": "${SCUSD_TOKEN_SONIC}"
+  }
+}
