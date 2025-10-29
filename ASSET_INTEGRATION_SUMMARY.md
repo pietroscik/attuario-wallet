@@ -127,7 +127,7 @@ All adapter files created in `bots/wave_rotation/adapters/`:
 For each of the 50 assets, collect:
 
 **For AMM Pools (Uniswap v2, Aerodrome v1):**
-- Router contract address
+- Router contract address (EVM checksum format, 42 chars: 0x + 40 hex)
 - LP token contract address
 - Token A contract address
 - Token B contract address
@@ -142,10 +142,15 @@ For each of the 50 assets, collect:
 - Vault contract address
 - Underlying asset address
 
+**Address Format Requirements:**
+- Must be EVM checksum format: 0x followed by 40 hexadecimal characters
+- Verify on block explorer before use
+- Test with small amounts first
+
 **Sources for Addresses:**
-- Protocol official documentation
-- Chain explorers (BaseScan, BSCScan, etc.)
-- DefiLlama API (can fetch some programmatically)
+- Protocol official documentation (most reliable)
+- Chain explorers (BaseScan, BSCScan, etc.) - verify contract is verified
+- DefiLlama API (can fetch some programmatically, see note below)
 - Protocol subgraphs
 - Direct protocol APIs
 
@@ -175,10 +180,25 @@ Some adapters are placeholders and need implementation:
 cp .env.example .env
 # Edit .env with actual addresses
 
-# 2. Merge pool configurations into config.json
+# 2. Backup existing config before merging
+cp config.json config.json.backup
+
+# 3. Merge pool configurations into config.json
 # Take entries from config_sample_50_pools.json
 # Add to the "adapters" section of config.json
+
+# 4. Validate merged configuration
+python3 validate_50_assets.py
+
+# 5. Check for JSON syntax errors
+python3 -m json.tool config.json > /dev/null && echo "✅ Valid JSON" || echo "❌ Invalid JSON"
 ```
+
+**Merge Considerations:**
+- Avoid duplicate pool IDs
+- Ensure all referenced env vars exist
+- Validate adapter types are registered
+- Check for circular dependencies
 
 ### 4. Testing & Validation
 
@@ -212,10 +232,23 @@ Need RPC endpoints for:
 - ⚠️ BSC, Sonic, Avalanche, Arbitrum, Linea, Ethereum
 - ⚠️ Solana, Aptos (different SDK)
 
-Consider:
-- Public RPC rate limits
-- Private RPC providers (Alchemy, Infura, QuickNode)
-- Fallback RPCs for reliability
+**RPC Provider Options:**
+- **Public RPCs**: Free but rate-limited (suitable for testing)
+- **Private RPCs**: Alchemy, Infura, QuickNode (recommended for production)
+- **Fallback Strategy**: Configure multiple RPCs per chain
+
+**Security Considerations:**
+- ⚠️ **Never commit API keys** to version control
+- ✅ Store RPC URLs with credentials in `.env` only
+- ✅ Use environment-specific `.env` files (`.env.production`, `.env.staging`)
+- ✅ Rotate API keys periodically
+- ✅ Monitor RPC usage and set alerts for unusual activity
+- ✅ Use separate API keys for development and production
+
+**Rate Limiting:**
+- Public RPCs: ~100-1000 requests/day
+- Consider RPC request caching to reduce calls
+- Implement exponential backoff for failed requests
 
 ## 📋 Recommended Implementation Plan
 
@@ -256,8 +289,24 @@ Consider:
 ### Method 1: DefiLlama (Automated)
 ```bash
 # Can fetch from DefiLlama API
+# Note: API may have rate limits, no authentication required
+# Fallback: Use manual methods if API is unavailable
+
 curl "https://yields.llama.fi/pools" | jq '.data[] | select(.chain=="Base" and .project=="uniswap-v2")'
+
+# Error handling example:
+curl -f "https://yields.llama.fi/pools" 2>/dev/null || echo "API unavailable, use manual methods"
+
+# Consider caching results to avoid repeated API calls
+curl "https://yields.llama.fi/pools" > pools_cache.json
 ```
+
+**API Limitations:**
+- No authentication required (as of 2025)
+- Rate limiting may apply
+- Pool data may be stale (check timestamp)
+- Not all protocols/pools are indexed
+- Always verify addresses on block explorer
 
 ### Method 2: Block Explorers
 - **Base:** https://basescan.org/
@@ -293,10 +342,17 @@ Visit the DEX/protocol UI, connect wallet, inspect browser network tab for contr
 When fully implemented, the system should:
 
 1. **✅ Support 50 new pools** across 9 chains
-2. **✅ Allocate 0.05 weight** to each pool (50 × 0.05 = 2.5 total weight)
+2. **✅ Allocate weights** to each pool (default 0.05 per pool = 2.5 total)
 3. **✅ Calculate normalized scores** for all pools
 4. **✅ Execute rotations** when score differences exceed threshold
 5. **✅ Log all operations** to state.json and log.csv
+
+**Weight Allocation Notes:**
+- Default weight per pool: 0.05 (configurable)
+- Total weight with 50 pools: 2.5 (50 × 0.05)
+- Weights can be adjusted per pool in configuration
+- System normalizes scores across all active pools
+- If pools are added/removed, weights rebalance automatically
 
 ## 📞 Support
 
