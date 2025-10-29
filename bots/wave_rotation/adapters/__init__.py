@@ -47,6 +47,20 @@ ADAPTER_TYPES: Dict[str, Type[Adapter]] = {
     "yearn": _load_adapter("yearn", "YearnAdapter"),
     "comet": _load_adapter("comet", "CometAdapter"),
     "ctoken": _load_adapter("ctoken", "CTokenAdapter"),
+    # New adapters for 50 asset integration
+    "uniswap_v2": _load_adapter("uniswap_v2", "UniswapV2Adapter"),
+    "uniswap_v3": _load_adapter("uniswap_v3", "UniswapV3Adapter"),
+    "aerodrome_v1": _load_adapter("aerodrome_v1", "AerodromeV1Adapter"),
+    "aerodrome_slipstream": _load_adapter("aerodrome_slipstream", "AerodromeSlipstreamAdapter"),
+    "beefy_vault": _load_adapter("beefy_vault", "BeefyVaultAdapter"),
+    "raydium_amm": _load_adapter("raydium_amm", "RaydiumAmmAdapter"),
+    "hyperion": _load_adapter("hyperion", "HyperionAdapter"),
+    "balancer_v3": _load_adapter("balancer_v3", "BalancerV3Adapter"),
+    "spectra_v2": _load_adapter("spectra_v2", "SpectraV2Adapter"),
+    "vaultcraft": _load_adapter("vaultcraft", "VaultcraftAdapter"),
+    "yield_yak": _load_adapter("yield_yak", "YieldYakAdapter"),
+    "etherex_cl": _load_adapter("etherex_cl", "EtherexCLAdapter"),
+    "peapods_finance": _load_adapter("peapods_finance", "PeapodsFinanceAdapter"),
 }
 
 
