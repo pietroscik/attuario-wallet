@@ -86,6 +86,19 @@ REQUIRED_TOKEN_FIELDS: Dict[str, Sequence[str]] = {
     "ctoken": ("asset",),
     "aave_v3": ("asset",),
     "lp_beefy_aero": ("token0", "token1"),
+    "uniswap_v2": ("token0", "token1"),
+    "uniswap_v3": ("token0", "token1"),
+    "aerodrome_v1": ("token0", "token1"),
+    "aerodrome_slipstream": ("token0", "token1"),
+    "beefy_vault": (),  # Uses want() from vault
+    "raydium_amm": ("token0", "token1"),
+    "hyperion": ("token0", "token1"),
+    "balancer_v3": (),  # Multi-token pools
+    "spectra_v2": (),  # Yield tokenization
+    "vaultcraft": ("asset",),
+    "yield_yak": ("asset",),
+    "etherex_cl": ("token0", "token1"),
+    "peapods_finance": ("asset",),
 }
 
 ERC20_BALANCE_DECIMALS_ABI = json.loads(
