@@ -152,6 +152,15 @@ def move_capital_smart(
     score_curr: float | None,
     dry_run: bool = False,
 ) -> str:
+    """
+    Move capital between pools with safety checks.
+    
+    Includes kill-switch integration for error tracking.
+    """
+    from kill_switch import get_kill_switch
+    
+    kill_switch = get_kill_switch()
+    
     state = _load_state()
 
     if Web3 is None or get_signer_context is None:
@@ -241,33 +250,54 @@ def move_capital_smart(
 
     notes: list[str] = [f"guard:{note_gas}", f"guard:{note_edge}"]
     movement = False
+    has_error = False
 
     if current_pool and next_pool and current_pool != next_pool and current_adapter is not None:
         if dry_run:
             notes.append(f"withdraw:dry:{current_pool}")
         else:
-            res = current_adapter.withdraw_all()
-            status = res.get("status", "unknown")
-            tx_hash = res.get("withdraw_tx")
-            if status == "ok" and tx_hash:
-                movement = True
-            suffix = f":{tx_hash}" if tx_hash else ""
-            notes.append(f"withdraw:{status}{suffix}")
+            try:
+                res = current_adapter.withdraw_all()
+                status = res.get("status", "unknown")
+                tx_hash = res.get("withdraw_tx")
+                if status == "ok" and tx_hash:
+                    movement = True
+                elif status != "ok":
+                    has_error = True
+                    error_msg = f"Withdraw failed: {status}"
+                    kill_switch.record_error(error_msg)
+                suffix = f":{tx_hash}" if tx_hash else ""
+                notes.append(f"withdraw:{status}{suffix}")
+            except Exception as exc:
+                has_error = True
+                error_msg = f"Withdraw exception: {exc}"
+                kill_switch.record_error(error_msg)
+                notes.append(f"withdraw:error:{type(exc).__name__}")
 
     if next_pool and next_adapter is not None:
         if dry_run:
             notes.append(f"deposit:dry:{next_pool}")
         else:
-            res = next_adapter.deposit_all()
-            status = res.get("status", "unknown")
-            txs = []
-            if res.get("approve_tx"):
-                txs.append(f"approve={res['approve_tx']}")
-            if res.get("deposit_tx"):
-                txs.append(f"deposit={res['deposit_tx']}")
-                movement = True
-            suffix = f":{'|'.join(txs)}" if txs else ""
-            notes.append(f"deposit:{status}{suffix}")
+            try:
+                res = next_adapter.deposit_all()
+                status = res.get("status", "unknown")
+                txs = []
+                if res.get("approve_tx"):
+                    txs.append(f"approve={res['approve_tx']}")
+                if res.get("deposit_tx"):
+                    txs.append(f"deposit={res['deposit_tx']}")
+                    movement = True
+                elif status != "ok":
+                    has_error = True
+                    error_msg = f"Deposit failed: {status}"
+                    kill_switch.record_error(error_msg)
+                suffix = f":{'|'.join(txs)}" if txs else ""
+                notes.append(f"deposit:{status}{suffix}")
+            except Exception as exc:
+                has_error = True
+                error_msg = f"Deposit exception: {exc}"
+                kill_switch.record_error(error_msg)
+                notes.append(f"deposit:error:{type(exc).__name__}")
 
     sources = f"curr={current_src or '-'};next={next_src or '-'};gas={estimate_gas}"
 

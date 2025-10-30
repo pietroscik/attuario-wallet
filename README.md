@@ -146,6 +146,50 @@ At the end of each day:
 - **TVL Filter**: Excludes pools with TVL < $100,000 (configurable)
 - **Gas Ceiling**: Prevents execution if gas prices exceed configured limits
 
+### Security & Production Hardening (Q4 2025)
+
+The system includes multiple security layers for production-ready operation:
+
+#### **Concurrency Protection**
+- **Run-Lock**: Prevents concurrent strategy executions using file-based locking
+- **Nonce Manager**: Tracks transaction nonces to avoid "nonce too low" errors
+- **Idempotent Operations**: Safe retry logic prevents duplicate transactions
+
+#### **Error Handling & Recovery**
+- **Kill-Switch**: Automatically halts execution after N consecutive on-chain errors (default: 3)
+- **Transaction Error Classification**: Categorizes errors (nonce, gas, revert, slippage, etc.)
+- **Revert Decoding**: Extracts human-readable error messages from failed transactions
+- **Exponential Backoff**: Automatic retry with increasing delays for transient failures
+
+#### **Slippage & Price Protection**
+- **Slippage Bounds**: Configurable slippage tolerance (default: 1%) for all swaps and deposits
+- **Min Amount Out**: Enforces minimum output amounts to prevent sandwich attacks
+- **Price Impact Limits**: Rejects transactions with excessive price impact (default: 5%)
+
+#### **Protocol State Monitoring**
+- **Paused Detection**: Checks if vaults/protocols are paused before depositing
+- **Shutdown Detection**: Detects emergency shutdown states (Yearn, Beefy, ERC-4626)
+- **Max Deposit Checks**: Validates deposit limits before attempting operations
+
+#### **Safe Math & Decimal Handling**
+- **Decimal Validation**: Safely handles non-standard token decimals (0-77 range)
+- **Amount Clamping**: Ensures amounts never exceed available balances
+- **Rounding**: Uses ROUND_DOWN to prevent balance overflows
+- **Fee-on-Transfer Support**: Detects tokens with transfer fees
+
+#### **Allowance Policy**
+- **Exact Approvals**: Uses exact amount approvals for non-trusted protocols
+- **Max Approvals**: Uses max uint256 approvals only for blue-chip protocols (configurable)
+- **Auto-Revoke**: Revokes allowances after withdrawal from non-trusted vaults
+- **Allowance Reuse Warning**: Tracks and warns when reusing existing allowances
+
+#### **Execution Summary**
+- **Structured Logging**: JSON-formatted execution summaries for observability
+- **Gas Tracking**: Records gas used and gas costs for each operation
+- **PnL Reporting**: Calculates and reports realized profit/loss
+- **Treasury Status**: Tracks treasury movements and reasons for transfers
+- **Error/Warning Counts**: Aggregates errors and warnings for monitoring
+
 #### Selection & Ranking
 
 The `selection_greedy.py` module implements economic edge-based ranking:
@@ -209,6 +253,36 @@ EDGE_GAS_MULTIPLIER=1.0         # Gas cost multiplier for safety margin
 POOL_ALLOWLIST=                 # Comma-separated pool IDs to whitelist
 POOL_DENYLIST=                  # Comma-separated pool IDs to blacklist
 REQUIRE_ADAPTER_BEFORE_RANK=1   # Only rank pools with configured adapters
+```
+
+#### Security & Error Handling
+
+```bash
+# Kill-Switch Configuration
+KILL_SWITCH_THRESHOLD=3         # Consecutive errors before halt
+KILL_SWITCH_RESET_TIMEOUT=3600  # Seconds before error counter resets
+
+# Transaction Retry Policy
+TX_RETRY_MAX_ATTEMPTS=3         # Maximum retry attempts
+TX_RETRY_INITIAL_DELAY=1.0      # Initial delay in seconds
+TX_RETRY_MAX_DELAY=30.0         # Maximum delay between retries
+TX_RETRY_EXPONENTIAL_BASE=2.0   # Exponential backoff base
+TX_RETRY_JITTER=true            # Add random jitter to delays
+
+# Slippage Protection
+SLIPPAGE_BPS=100                # Slippage tolerance in basis points (1%)
+MAX_PRICE_IMPACT_BPS=500        # Maximum price impact (5%)
+MIN_OUTPUT_RATIO=0.95           # Minimum output ratio (95% of expected)
+
+# Allowance Policy
+ALLOWANCE_MODE=MAX              # Options: MAX (infinite), EXACT (specific amount)
+VAULT_TRUSTED=false             # Set true for blue-chip protocols
+REVOKE_ALLOWANCE_ON_EXIT=true   # Revoke allowances after withdrawal
+
+# RPC Failover & Health
+RPC_TIMEOUT_S=20                # RPC request timeout
+RPC_MAX_RETRIES=2               # Max RPC retry attempts
+MAX_BLOCK_STALENESS_S=90        # Max block age before switching RPC
 ```
 
 #### Treasury Settings
@@ -332,6 +406,43 @@ Top Candidate: pool:base:morpho:USDC (Score: 0.0267, +8.9%)
 Economic Edge: +0.032 ETH (~96 EUR) after gas
 Action: SWITCH recommended (threshold met)
 Treasury Balance: 0.45 ETH (~1,350 EUR)
+
+============================================================
+EXECUTION SUMMARY
+============================================================
+run_id=2025-10-30T13:45:22.123Z
+timestamp=2025-10-30 13:45:22 UTC
+
+FLAGS:
+  DRY_RUN: False
+  MULTI_STRATEGY: False
+
+POOL:
+  active_pool: base:aave-v3:usdc
+  adapter: erc4626
+  chain: base
+
+AMOUNTS:
+  amount_in: 1.234567 ETH
+  amount_out: 1.235890 ETH
+
+GAS:
+  gas_used: 185,234
+  gas_cost: 0.000234 ETH
+
+PERFORMANCE:
+  realized_pnl: +0.001323 ETH
+
+TREASURY:
+  treasury_move: YES
+  treasury_amount: 0.000662 ETH
+  reason: threshold_met
+
+STATUS:
+  errors: 0
+  warnings: 0
+
+============================================================
 ```
 
 ### Production Execution
