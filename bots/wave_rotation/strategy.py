@@ -44,6 +44,11 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for minimal envs
 from data_sources import fetch_pools_scoped
 from executor import move_capital_smart, settle_day
 from logger import append_log, build_telegram_message, timestamp_now
+from multi_strategy import (
+    execute_multi_strategy,
+    print_allocation_summary,
+    MultiStrategyConfig,
+)
 from onchain import (
     push_strategy_update,
     update_active_pool,
@@ -764,6 +769,57 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         capital_hint_eth = available_onchain
         store_decimal_file(CAPITAL_FILE, capital_hint_eth)
 
+    # Check if multi-strategy mode is enabled
+    multi_config = MultiStrategyConfig.load()
+    if multi_config.enabled:
+        print("🎯 Multi-Strategy Optimizer ENABLED")
+        
+        dry_run_enabled = os.getenv("PORTFOLIO_DRY_RUN", "false").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        
+        # Prepare config dict with adapters
+        config_dict_full = {
+            "chains": config.chains,
+            "sources": config.sources,
+            "adapters": config.adapters,
+            "search_scope": os.getenv("SEARCH_SCOPE", config.selection.get("search_scope", "GLOBAL")),
+        }
+        
+        # Execute multi-strategy
+        allocations, execution_results = execute_multi_strategy(
+            config_dict_full,
+            wallet_balances,
+            wallet_labels,
+            w3,
+            account,
+            dry_run=dry_run_enabled,
+        )
+        
+        # Print summary
+        print_allocation_summary(allocations, execution_results)
+        
+        # Send telegram notification
+        if allocations:
+            allocation_summary = "\n".join([
+                f"• {a.asset_label} → {a.pool_name} (${a.allocation_usd:.2f})"
+                for a in allocations
+            ])
+            total_usd = sum(a.allocation_usd for a in allocations)
+            msg = (
+                "🎯 Multi-Strategy Allocation Complete\n\n"
+                f"{allocation_summary}\n\n"
+                f"💰 Total: ${total_usd:.2f}\n"
+                f"🔄 Mode: {'DRY RUN' if dry_run_enabled else 'LIVE'}"
+            )
+        else:
+            msg = "⚠️ Multi-Strategy: No viable allocations found"
+        
+        print(msg)
+        send_telegram(msg, config)
+        return
+    
+    # Standard Wave Rotation mode continues below
     selected, candidate_map = select_best_pool(
         pools,
         config,
