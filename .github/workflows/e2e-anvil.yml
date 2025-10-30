@@ -1,4 +1,5 @@
 name: E2E (Anvil Fork)
+
 on:
   workflow_dispatch:
   pull_request:
@@ -6,8 +7,10 @@ on:
       - "tests/e2e/**"
       - ".github/workflows/e2e-anvil.yml"
       - "scripts/run_e2e_fork.sh"
+
 permissions:
   contents: read
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -16,31 +19,43 @@ jobs:
       FORK_RPC_URL: ${{ secrets.FORK_RPC_URL }}
       WETH_TOKEN_ADDRESS: "0x4200000000000000000000000000000000000006"
       USDC_BASE: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with:
+          python-version: "3.11"
+
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: stable }
+        with:
+          version: stable
+
       - name: Install E2E deps
         run: |
           python -m pip install --upgrade pip
           pip install -r tests/e2e/requirements-e2e.txt
       - name: Smoke tests
-        run: pytest -m smoke -q
+        run: |
+          export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+          pytest -m smoke -q
+
       - name: Fork tests
         if: ${{ env.FORK_RPC_URL != '' }}
         run: |
           (anvil --fork-url "$FORK_RPC_URL" --chain-id 8453 >/dev/null 2>&1) &
           ANVIL_PID=$!
           trap 'kill $ANVIL_PID 2>/dev/null || true' EXIT
+          export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
           pytest -m fork -q
+
       - name: Save pytest logs
         if: always()
         run: |
           mkdir -p artifacts
           pytest -m smoke -q --maxfail=1 2>&1 | tee artifacts/smoke.log
           [[ -z "${{ env.FORK_RPC_URL }}" ]] || (pytest -m fork -q --maxfail=1 2>&1 | tee artifacts/fork.log)
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
