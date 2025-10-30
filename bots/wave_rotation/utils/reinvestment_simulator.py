@@ -32,7 +32,12 @@ DEFAULT_BASE_REINVEST_RATIO = 0.5
 
 
 try:  # Prova a riutilizzare l'implementazione ufficiale
-    from bots.wave_rotation.strategy import effective_reinvest_ratio as _strategy_ratio
+    import sys
+    from pathlib import Path as _Path
+    _parent = _Path(__file__).parent.parent
+    if str(_parent) not in sys.path:
+        sys.path.insert(0, str(_parent))
+    from strategy import effective_reinvest_ratio as _strategy_ratio
 except Exception:  # pragma: no cover - fallback per esecuzioni standalone
     _strategy_ratio = None
 

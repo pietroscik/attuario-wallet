@@ -31,7 +31,8 @@ def send_telegram_photo(photo_path, caption):
             r = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto",
                 data={"chat_id": TELEGRAM_CHATID, "caption": caption},
-                files={"photo": img}
+                files={"photo": img},
+                timeout=30
             )
         if not r.ok:
             print("[!] Errore Telegram:", r.json())
