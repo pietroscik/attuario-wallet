@@ -1,5 +1,4 @@
 name: E2E (Anvil Fork)
-
 on:
   workflow_dispatch:
   pull_request:
@@ -7,60 +6,43 @@ on:
       - "tests/e2e/**"
       - ".github/workflows/e2e-anvil.yml"
       - "scripts/run_e2e_fork.sh"
-
 permissions:
   contents: read
-
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     env:
       FORK_RPC_URL: ${{ secrets.FORK_RPC_URL }}
       WETH_TOKEN_ADDRESS: "0x4200000000000000000000000000000000000006"
       USDC_BASE: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Foundry (for anvil)
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: stable }
       - name: Install E2E deps
         run: |
           python -m pip install --upgrade pip
           pip install -r tests/e2e/requirements-e2e.txt
-
       - name: Smoke tests
         run: pytest -m smoke -q
-
-      - name: Fork tests (run only if RPC secret set)
+      - name: Fork tests
         if: ${{ env.FORK_RPC_URL != '' }}
         run: |
           (anvil --fork-url "$FORK_RPC_URL" --chain-id 8453 >/dev/null 2>&1) &
           ANVIL_PID=$!
-          pytest -m fork -q || (kill $ANVIL_PID && exit 1)
-          kill $ANVIL_PID
-
+          trap 'kill $ANVIL_PID 2>/dev/null || true' EXIT
+          pytest -m fork -q
       - name: Save pytest logs
         if: always()
         run: |
           mkdir -p artifacts
           pytest -m smoke -q --maxfail=1 2>&1 | tee artifacts/smoke.log
-          if [ -n "${{ env.FORK_RPC_URL }}" ]; then
-            pytest -m fork -q --maxfail=1 2>&1 | tee artifacts/fork.log || true
-          fi
-
-      - name: Upload artifacts
+          [[ -z "${{ env.FORK_RPC_URL }}" ]] || (pytest -m fork -q --maxfail=1 2>&1 | tee artifacts/fork.log)
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: e2e-logs
           path: artifacts/
