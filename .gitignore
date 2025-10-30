@@ -25,6 +25,8 @@ state.json
 bots/wave_rotation/state.json
 bots/wave_rotation/capital.txt
 bots/wave_rotation/treasury.txt
+bots/wave_rotation/.run_lock
+bots/wave_rotation/.kill_switch_state
 cache/
 logs/
 *.log
