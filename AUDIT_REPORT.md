@@ -159,20 +159,20 @@
 
 ### ⚠️ Warnings
 
-- README.md references 4 not in .env.example
-- README.md references 5 not in .env.example
 - README.md references 2 not in .env.example
+- README.md references 4 not in .env.example
 - README.md references 95 not in .env.example
+- README.md references 5 not in .env.example
 - README.md references 13 not in .env.example
-- MULTI_STRATEGY_DOCS.md references 5 not in .env.example
-- MULTI_STRATEGY_DOCS.md references 4 not in .env.example
-- MULTI_STRATEGY_DOCS.md references 3 not in .env.example
 - MULTI_STRATEGY_DOCS.md references 10 not in .env.example
-- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 6 not in .env.example
-- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 5 not in .env.example
-- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 3 not in .env.example
-- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 15 not in .env.example
+- MULTI_STRATEGY_DOCS.md references 4 not in .env.example
+- MULTI_STRATEGY_DOCS.md references 5 not in .env.example
+- MULTI_STRATEGY_DOCS.md references 3 not in .env.example
 - IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 1 not in .env.example
+- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 6 not in .env.example
+- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 100 not in .env.example
+- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 3 not in .env.example
+- IMPLEMENTATION_SUMMARY_MULTI_STRATEGY.md references 780 not in .env.example
 
 ---
 
@@ -185,9 +185,9 @@
 ### Medium Priority
 
 1. Found 1 files with time.sleep()
-1. README.md references 4 not in .env.example
-1. README.md references 5 not in .env.example
 1. README.md references 2 not in .env.example
+1. README.md references 4 not in .env.example
+1. README.md references 95 not in .env.example
 
 ## Conclusion
 
