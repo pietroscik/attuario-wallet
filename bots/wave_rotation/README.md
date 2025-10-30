@@ -244,7 +244,7 @@ Aggiungi al file `.env`:
 
 ```bash
 # Multi-Strategy Optimizer
-MULTI_STRATEGY_ENABLED=true           # Abilita multi-strategia
+MULTI_STRATEGY_ENABLED=true           # Abilita multi-strategia (false = Wave Rotation standard)
 STRATEGY_BUFFER_PERCENT=5.0           # Percentuale di riserva (0-100)
 MIN_INVESTMENT_PER_POOL=0.001         # Minimo investimento per pool
 MAX_POOLS_PER_ASSET=3                 # Max pool da considerare per asset
@@ -253,6 +253,8 @@ MAX_POOLS_PER_ASSET=3                 # Max pool da considerare per asset
 PORTFOLIO_DRY_RUN=true                # Test senza eseguire (false per live)
 PORTFOLIO_AUTOMATION_ENABLED=true      # Abilita automazione portfolio
 ```
+
+**Nota**: Quando `MULTI_STRATEGY_ENABLED=false`, il sistema utilizza la strategia Wave Rotation standard (singolo pool ottimale). Entrambe le modalità sono pienamente supportate e possono essere cambiate in qualsiasi momento.
 
 ### Utilizzo
 

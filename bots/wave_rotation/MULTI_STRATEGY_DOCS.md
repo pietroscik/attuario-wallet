@@ -87,7 +87,8 @@ cd bots/wave_rotation
 # Run test suite
 python test_multi_strategy.py
 
-# Expected output: "TEST RESULTS: 6 passed, 0 failed"
+# All tests should pass - currently 6 test cases covering:
+# - Configuration, pool matching, optimization, execution, state, integration
 ```
 
 ### Running Demonstration
@@ -280,16 +281,21 @@ Example notification:
 ## Performance Considerations
 
 ### Scalability
-- **Assets**: Handles 50+ tokens simultaneously
-- **Pools**: Scans 200+ pools per execution
-- **Adapters**: Supports 20+ adapter types
-- **Chains**: Multi-chain (Base, Ethereum, Arbitrum, Sonic, etc.)
+The system is designed to handle:
+- **Assets**: Multiple tokens across different chains
+- **Pools**: Hundreds of pools from various protocols
+- **Adapters**: Multiple adapter types (ERC4626, Aave, Morpho, Beefy, etc.)
+- **Chains**: Multi-chain support (Base, Ethereum, Arbitrum, Sonic, etc.)
+
+Actual capacity depends on RPC limits, API rate limits, and network conditions.
 
 ### Execution Time
-- Pool fetching: ~2-5 seconds (cached)
-- Matching: <1 second
-- Optimization: <1 second
-- Execution: 30-60 seconds per pool (blockchain dependent)
+Typical execution times (varies by network conditions and blockchain congestion):
+- Pool fetching: ~2-5 seconds (with caching enabled)
+- Matching and optimization: <1 second (in-memory operations)
+- Transaction execution: 30-60+ seconds per pool (blockchain-dependent)
+
+Note: Performance varies based on RPC endpoint quality, gas prices, and network congestion.
 
 ### Gas Optimization
 - Batch operations when possible
