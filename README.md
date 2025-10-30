@@ -206,6 +206,19 @@ Pools are ranked by net gain, ensuring only profitable moves are executed.
 
 Copy `.env.example` to `.env` and configure the following variables:
 
+**📚 NEW: Comprehensive Address Verification Guide Available!**
+
+The `.env.example` file now includes:
+- ✅ Pre-verified protocol addresses for Base, Ethereum, and other chains
+- ✅ Inline verification instructions using `cast` (Foundry)
+- ✅ Security best practices documentation
+- ✅ RPC endpoints for all 9 supported chains
+
+**For detailed instructions, see:**
+- 📖 [ADDRESS_VERIFICATION_GUIDE.md](ADDRESS_VERIFICATION_GUIDE.md) - Complete guide for finding and verifying addresses
+- 🔧 [scripts/verify_addresses.sh](scripts/verify_addresses.sh) - Automated verification tool
+- 📋 [ENV_POPULATION_SUMMARY.md](ENV_POPULATION_SUMMARY.md) - Summary of pre-populated addresses
+
 #### Core Settings
 
 ```bash
