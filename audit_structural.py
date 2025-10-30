@@ -535,8 +535,11 @@ class StructuralAuditor:
                         content = f.read()
                         
                         # Find environment variable references in docs
-                        doc_vars = set(re.findall(r'`([A-Z_0-9]+)`', content))
-                        doc_vars.update(re.findall(r'\$\{?([A-Z_0-9]+)\}?', content))
+                        doc_vars = set(re.findall(r'`([A-Z_][A-Z_0-9]+)`', content))
+                        doc_vars.update(re.findall(r'\$\{?([A-Z_][A-Z_0-9]+)\}?', content))
+                        
+                        # Filter out numeric-only and short non-env-like strings
+                        doc_vars = {v for v in doc_vars if len(v) > 2 and not v.isdigit()}
                         
                         # Check if documented variables exist in code
                         undocumented = doc_vars - self.env_example_vars
