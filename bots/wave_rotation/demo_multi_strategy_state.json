@@ -1,0 +1,47 @@
+{
+  "timestamp": "2025-10-30 10:44:33",
+  "allocations": {
+    "WETH": {
+      "pool": "base:beefy:ANON-WETH",
+      "pool_name": "Beefy ANON-WETH LP",
+      "chain": "base",
+      "amount": 1.9,
+      "usd_value": 1.9,
+      "score": 0.00038298149122175794,
+      "apy": 0.15
+    },
+    "ANON": {
+      "pool": "base:beefy:ANON-WETH",
+      "pool_name": "Beefy ANON-WETH LP",
+      "chain": "base",
+      "amount": 95.0,
+      "usd_value": 95.0,
+      "score": 0.00038298149122175794,
+      "apy": 0.15
+    },
+    "EURC": {
+      "pool": "base:beefy:WETH-EURC",
+      "pool_name": "Beefy WETH-EURC LP",
+      "chain": "base",
+      "amount": 2850.0,
+      "usd_value": 2850.0,
+      "score": 0.00022353087456664957,
+      "apy": 0.085
+    },
+    "USDC": {
+      "pool": "base:morpho:USDC",
+      "pool_name": "Morpho USDC Vault",
+      "chain": "base",
+      "amount": 4750.0,
+      "usd_value": 4750.0,
+      "score": 0.0001905000470505023,
+      "apy": 0.072
+    }
+  },
+  "buffer_reserved": true,
+  "execution_results": {
+    "base:beefy:ANON-WETH": "dry_run:deposit:95.000000",
+    "base:beefy:WETH-EURC": "dry_run:deposit:2850.000000",
+    "base:morpho:USDC": "dry_run:deposit:4750.000000"
+  }
+}
