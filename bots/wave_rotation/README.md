@@ -224,3 +224,72 @@ Il sistema ora supporta **8 tipi di adapter automatici** e **6 adapter espliciti
 - ✅ ERC-4626 Standard - Vaults compatibili (Base)
 
 Consulta `ADAPTER_COVERAGE.md` per la documentazione completa degli adapter.
+
+## Multi-Strategy Optimizer 🎯
+
+Il **Multi-Strategy Optimizer** è un sistema avanzato di gestione portfolio che alloca automaticamente i fondi del wallet su più pool in base a compatibilità degli asset, score APY, e fattori di rischio.
+
+### Caratteristiche Principali
+
+- ✅ **Supporto Multi-Asset**: Gestisce ETH, WETH, USDC, EURC, ANON e 50+ altri token
+- ✅ **Matching Automatico**: Associa gli asset del wallet ai pool compatibili
+- ✅ **Ottimizzazione Greedy**: Alloca ogni asset al pool con score più alto
+- ✅ **Buffer di Riserva**: Mantiene una percentuale configurabile di fondi non allocati (default 5%)
+- ✅ **Modalità Dry-Run**: Testa le allocazioni senza eseguire transazioni
+- ✅ **Integrazione Treasury**: Compatibile con lo split 50/50 profitti → treasury
+
+### Configurazione
+
+Aggiungi al file `.env`:
+
+```bash
+# Multi-Strategy Optimizer
+MULTI_STRATEGY_ENABLED=true           # Abilita multi-strategia
+STRATEGY_BUFFER_PERCENT=5.0           # Percentuale di riserva (0-100)
+MIN_INVESTMENT_PER_POOL=0.001         # Minimo investimento per pool
+MAX_POOLS_PER_ASSET=3                 # Max pool da considerare per asset
+
+# Modalità Esecuzione
+PORTFOLIO_DRY_RUN=true                # Test senza eseguire (false per live)
+PORTFOLIO_AUTOMATION_ENABLED=true      # Abilita automazione portfolio
+```
+
+### Utilizzo
+
+```bash
+# Abilita multi-strategy nel .env
+MULTI_STRATEGY_ENABLED=true
+
+# Esegui lo strategy script
+cd bots/wave_rotation
+python strategy.py
+
+# Esegui test
+python test_multi_strategy.py
+
+# Esegui dimostrazione con wallet mock
+python demo_multi_strategy.py
+```
+
+### Esempio Output
+
+```
+🎯 Multi-Strategy Allocation Complete
+
+• WETH → Morpho WETH Vault ($5,700.00)
+• USDC → Morpho USDC Vault ($4,750.00)
+• EURC → Beefy WETH-EURC LP ($2,850.00)
+• ANON → Beefy ANON-WETH LP ($95.00)
+
+💰 Total: $13,395.00
+🔄 Mode: DRY RUN
+```
+
+### Documentazione Completa
+
+Consulta `MULTI_STRATEGY_DOCS.md` per:
+- Architettura dettagliata
+- Algoritmo di ottimizzazione
+- Scenari d'uso
+- Troubleshooting
+- Estensioni future
