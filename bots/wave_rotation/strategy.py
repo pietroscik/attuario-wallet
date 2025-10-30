@@ -43,6 +43,8 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for minimal envs
 
 from data_sources import fetch_pools_scoped
 from executor import move_capital_smart, settle_day
+from execution_summary import create_execution_summary
+from kill_switch import get_kill_switch
 from logger import append_log, build_telegram_message, timestamp_now
 from multi_strategy import (
     execute_multi_strategy,
@@ -56,6 +58,7 @@ from onchain import (
     get_available_capital_eth,
     get_signer_context,
 )
+from run_lock import acquire_run_lock, RunLockError
 from scoring import daily_cost, daily_rate, normalized_score, should_switch
 from treasury import dispatch_treasury_payout
 
@@ -687,6 +690,26 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     load_dotenv()
 
+    # Check kill-switch before proceeding
+    kill_switch = get_kill_switch()
+    try:
+        kill_switch.check()
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return
+
+    # Acquire run-lock to prevent concurrent executions
+    try:
+        with acquire_run_lock():
+            _run_strategy(args, kill_switch)
+    except RunLockError as exc:
+        print(f"⚠️ {exc}")
+        return
+
+
+def _run_strategy(args: argparse.Namespace, kill_switch) -> None:
+    """Internal strategy execution (called within run-lock context)."""
+
     config_path = Path(args.config).expanduser()
     config: Optional[StrategyConfig] = None
     config_error: Optional[str] = None
@@ -1216,6 +1239,33 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     for note in extra_notifications:
         print(note)
         send_telegram(note, config)
+    
+    # Create and print execution summary
+    summary = create_execution_summary(
+        dry_run=dry_run_enabled,
+        multi_strategy=False,
+    )
+    summary.active_pool = working_pool.get("pool_id")
+    summary.adapter_type = working_pool.get("adapter_source") or "unknown"
+    summary.pool_chain = working_pool.get("chain")
+    summary.amount_in = capital_before
+    summary.amount_out = capital_after
+    summary.realized_pnl = realized_interval_profit
+    summary.treasury_move = treasury_delta > 0
+    summary.treasury_amount = treasury_delta if treasury_delta > 0 else None
+    
+    if crisis_flag:
+        summary.add_warning("Stop-loss triggered")
+    if autopause_triggered:
+        summary.add_warning("Auto-pause activated")
+    if portfolio_status.startswith("SKIP"):
+        summary.treasury_reason = portfolio_status
+        summary.add_note(f"Portfolio movement skipped: {portfolio_status}")
+    
+    # Record success in kill-switch
+    kill_switch.record_success()
+    
+    print("\n" + summary.format_text())
 
 
 if __name__ == "__main__":
