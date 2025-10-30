@@ -2,6 +2,20 @@
 
 This guide explains how to populate and verify the addresses in `.env.example` for the Attuario Wallet system.
 
+## Quick Start
+
+The `.env.example` file now includes:
+- ✅ **Pre-verified protocol addresses** (routers, NFT managers, vaults)
+- ✅ **Working RPC endpoints** for all supported chains
+- ✅ **Inline verification commands** for all placeholder addresses
+- ✅ **Security best practices** documentation
+
+**To use:**
+1. Copy `.env.example` to `.env`: `cp .env.example .env`
+2. Fill in any missing addresses you need using the instructions in this guide
+3. Add your private keys and API keys (NEVER commit these!)
+4. Verify addresses before using in production
+
 ## Table of Contents
 
 1. [Overview](#overview)
