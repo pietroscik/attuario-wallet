@@ -12,6 +12,10 @@ trap 'kill $ANVIL_PID 2>/dev/null || true' EXIT
 python3 -m venv .venv-e2e
 source .venv-e2e/bin/activate
 pip install -r tests/e2e/requirements-e2e.txt
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+
+# evita il load di plugin di terze parti (es. web3.tools.pytest_ethereum)
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 
 pytest -m smoke -q
 pytest -m fork -q

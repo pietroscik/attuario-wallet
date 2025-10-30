@@ -17,7 +17,16 @@ import requests
 from eth_account import Account
 from web3 import HTTPProvider, Web3
 from web3.contract.contract import ContractFunction
-from web3.middleware.proof_of_authority import ExtraDataToPOAMiddleware
+# POA middleware: opzionale. Su Base (8453) non serve.
+try:
+    # web3>=6 (alcune build lo espongono qui)
+    from web3.middleware import ExtraDataToPOAMiddleware  # type: ignore
+except Exception:
+    try:
+        # legacy alias (geth_poa_middleware)
+        from web3.middleware.geth_poa import geth_poa_middleware as ExtraDataToPOAMiddleware  # type: ignore
+    except Exception:
+        ExtraDataToPOAMiddleware = None  # ok: nessun middleware disponibile
 
 from input_validation import validate_ethereum_address, validate_pool_name, validate_percentage, validate_positive_amount
 
@@ -64,10 +73,11 @@ _local_nonce: int | None = None
 def _make_w3(url: str) -> Web3:
     provider = HTTPProvider(url, request_kwargs={"timeout": RPC_TIMEOUT})
     w = Web3(provider)
-    # L2/OP-stack e chain PoA: il middleware non fa danni se non serve
+    # L2/OP-stack e chain PoA: inietta solo se disponibile
     try:
-        w.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-    except ValueError:
+        if ExtraDataToPOAMiddleware:
+            w.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+    except Exception:
         pass
     return w
 

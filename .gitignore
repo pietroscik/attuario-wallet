@@ -47,3 +47,9 @@ dist/
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# local env & state
+.venv/
+.venv-e2e/
+.env
+bots/wave_rotation/*state*.json
