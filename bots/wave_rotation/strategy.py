@@ -46,7 +46,7 @@ from executor import move_capital_smart, settle_day
 from execution_summary import create_execution_summary
 from kill_switch import get_kill_switch
 from logger import append_log, build_telegram_message, timestamp_now
-from metrics_runtime import compute_signals, SignalResult, LoopProfile
+from metrics_runtime import compute_signals
 from multi_strategy import (
     execute_multi_strategy,
     print_allocation_summary,
@@ -73,6 +73,8 @@ LOG_FILE = BASE_DIR / "log.csv"
 
 DEFAULT_FX_EUR_PER_ETH = 3000.0
 DEFAULT_TREASURY_MIN_EUR = 0.5
+DEFAULT_SCORE_BOOST_UP = 1.1
+DEFAULT_SCORE_PENALTY_DOWN = 0.5
 
 def _parse_env_set(name: str) -> set[str]:
     raw = os.getenv(name, "")
@@ -517,10 +519,13 @@ def enhance_candidates_with_signals(
             
             # Adjust base score based on signal regime
             # UP regime: boost score, DOWN regime: penalize score
+            score_boost_up = float(os.getenv("SCORE_BOOST_UP", str(DEFAULT_SCORE_BOOST_UP)))
+            score_penalty_down = float(os.getenv("SCORE_PENALTY_DOWN", str(DEFAULT_SCORE_PENALTY_DOWN)))
+            
             if sig.regime == "UP" and not sig.exit:
-                enhanced_candidate["score"] = candidate["score"] * 1.1
+                enhanced_candidate["score"] = candidate["score"] * score_boost_up
             elif sig.regime == "DOWN" or sig.exit:
-                enhanced_candidate["score"] = candidate["score"] * 0.5
+                enhanced_candidate["score"] = candidate["score"] * score_penalty_down
             
             enhanced.append(enhanced_candidate)
             

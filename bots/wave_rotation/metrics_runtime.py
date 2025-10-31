@@ -8,23 +8,23 @@ Adaptive runtime metrics based on loop duration.
 """
 
 from dataclasses import dataclass
-from math import prod, log
+from math import prod
 from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
 
-# ---------- Profili adattivi per finestra in base al loop ----------
+# ---------- Adaptive profiles for window based on loop ----------
 @dataclass
 class LoopProfile:
     loop_minutes: int
     resample_rule: str          # '5min', '15min', '60min', '1D'
     ema_fast_bars: int
     ema_slow_bars: int
-    confirm_bars_in: int        # isteresi ingresso
-    confirm_bars_out: int       # isteresi uscita
-    dd_stop: float              # stop su drawdown locale (0-1)
-    vol_cap: float              # cap su downside deviation (filtro)
+    confirm_bars_in: int        # entry hysteresis
+    confirm_bars_out: int       # exit hysteresis
+    dd_stop: float              # stop on local drawdown (0-1)
+    vol_cap: float              # cap on downside deviation (filter)
 
 
 def _choose_profile(loop_minutes: int) -> LoopProfile:
@@ -59,7 +59,7 @@ def _choose_profile(loop_minutes: int) -> LoopProfile:
     )
 
 
-# ---------- Indicatori di base ----------
+# ---------- Base indicators ----------
 def ema(series: pd.Series, n: int) -> pd.Series:
     return series.ewm(span=n, adjust=False).mean()
 
@@ -80,7 +80,7 @@ def twr_from_returns(returns: List[float]) -> float:
     return prod((1 + r) for r in returns) - 1
 
 def slope_log(series: pd.Series) -> float:
-    """pendenza della retta su log(series) ~ t (OLS)"""
+    """slope of the line on log(series) ~ t (OLS)"""
     y = np.log(series.replace(0, np.nan)).dropna()
     if len(y) < 3:
         return 0.0
@@ -105,24 +105,24 @@ def _calculate_r30_window(prof: LoopProfile) -> int:
         return max(2, 30 * bars_per_day)
 
 
-# ---------- Wrapper principale ----------
+# ---------- Main wrapper ----------
 @dataclass
 class SignalResult:
     regime: str                 # UP / FLAT / DOWN
-    enter: bool                 # trigger ingresso
-    exit: bool                  # trigger uscita
-    score: float                # score sintetico
-    info: Dict                  # indicatori per logging
+    enter: bool                 # entry trigger
+    exit: bool                  # exit trigger
+    score: float                # synthetic score
+    info: Dict                  # indicators for logging
 
 
 def compute_signals(
-    price_series: pd.Series,          # serie prezzo/NAV (index datetime)
-    tvl_series: pd.Series = None,     # opzionale (coerente come index)
-    apy_series: pd.Series = None,     # opzionale (stima real/teorica)
+    price_series: pd.Series,          # price/NAV series (datetime index)
+    tvl_series: pd.Series = None,     # optional (consistent as index)
+    apy_series: pd.Series = None,     # optional (real/theoretical estimate)
     loop_minutes: int = 5,
-    apy_min: float = 0.06,            # 6% minimo annuo
-    gap_tau: float = 0.10,            # tolleranza gap APY-realizzato
-    prev_state: Dict = None           # stato precedente per isteresi
+    apy_min: float = 0.06,            # 6% minimum annual
+    gap_tau: float = 0.10,            # APY-realized gap tolerance
+    prev_state: Dict = None           # previous state for hysteresis
 ) -> Tuple[SignalResult, LoopProfile]:
 
     prof = _choose_profile(loop_minutes)

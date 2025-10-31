@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import pandas as pd
 
 try:
