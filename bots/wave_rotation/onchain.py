@@ -17,6 +17,8 @@ import requests
 from eth_account import Account
 from web3 import HTTPProvider, Web3
 from web3.contract.contract import ContractFunction
+# Note: web3.py 6.x uses geth_poa_middleware instead of ExtraDataToPOAMiddleware
+# Requires: web3>=6.16,<7.0 (as specified in requirements.txt)
 from web3.middleware.geth_poa import geth_poa_middleware
 
 from input_validation import validate_ethereum_address, validate_pool_name, validate_percentage, validate_positive_amount
