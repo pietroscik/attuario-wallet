@@ -1,0 +1,99 @@
+name: Run wave-rotation tools
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_strategy:
+        description: "Eseguire anche strategy.py (one-shot)?"
+        type: boolean
+        default: true
+      dry_run:
+        description: "PORTFOLIO_DRY_RUN (true = non invia tx)"
+        type: choice
+        options: ["true","false"]
+        default: "true"
+
+concurrency:
+  group: wave-rotation-main
+  cancel-in-progress: false  # evita collisioni/nonce too low
+
+jobs:
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    env:
+      # ---- Variabili dal repo (Actions → Variables) ----
+      AAVE_POOL_ADDRESS_8453: ${{ vars.AAVE_POOL_ADDRESS_8453 }}
+      AAVE_WETH_GATEWAY_8453: ${{ vars.AAVE_WETH_GATEWAY_8453 }}
+      AERODROME_ROUTER_8453:  ${{ vars.AERODROME_ROUTER_8453 }}
+      AERODROME_SLIPSTREAM_NFT_MANAGER: ${{ vars.AERODROME_SLIPSTREAM_NFT_MANAGER }}
+      BALANCER_V3_VAULT_BASE: ${{ vars.BALANCER_V3_VAULT_BASE }}
+      BEEFY_CBETH_WETH_VAULT: ${{ vars.BEEFY_CBETH_WETH_VAULT }}
+      BEEFY_USDC_CBBTC_VAULT: ${{ vars.BEEFY_USDC_CBBTC_VAULT }}
+      BEEFY_USDC_USDT_VAULT:  ${{ vars.BEEFY_USDC_USDT_VAULT }}
+      BEEFY_WETH_EURC_VAULT:  ${{ vars.BEEFY_WETH_EURC_VAULT }}
+      BEEFY_WETH_USDC_VAULT:  ${{ vars.BEEFY_WETH_USDC_VAULT }}
+      BEEFY_WETH_USDT_VAULT:  ${{ vars.BEEFY_WETH_USDT_VAULT }}
+      CBBTC_BASE:             ${{ vars.CBBTC_BASE }}
+      CBETH_BASE:             ${{ vars.CBETH_BASE }}
+      EURC_BASE:              ${{ vars.EURC_BASE }}
+      MORPHO_USDC_VAULT_BASE: ${{ vars.MORPHO_USDC_VAULT_BASE }}
+      MORPHO_WETH_VAULT_BASE: ${{ vars.MORPHO_WETH_VAULT_BASE }}
+      SEAMLESS_USDC_VAULT_BASE: ${{ vars.SEAMLESS_USDC_VAULT_BASE }}
+      SPARK_USDC_VAULT_BASE:    ${{ vars.SPARK_USDC_VAULT_BASE }}
+      STEAKHOUSE_PRIME_USDC_VAULT_BASE: ${{ vars.STEAKHOUSE_PRIME_USDC_VAULT_BASE }}
+      UNISWAP_V2_ROUTER_BASE:  ${{ vars.UNISWAP_V2_ROUTER_BASE }}
+      UNISWAP_V3_NFT_MANAGER_BASE: ${{ vars.UNISWAP_V3_NFT_MANAGER_BASE }}
+      USDBC_BASE: ${{ vars.USDBC_BASE }}
+      USDC_BASE:  ${{ vars.USDC_BASE }}
+      USDT_BASE:  ${{ vars.USDT_BASE }}
+      YEARN_USDC_VAULT_BASE: ${{ vars.YEARN_USDC_VAULT_BASE }}
+      YEARN_WETH_VAULT_BASE: ${{ vars.YEARN_WETH_VAULT_BASE }}
+      WETH_YIELD_VAULT_BASE: ${{ vars.WETH_YIELD_VAULT_BASE }}
+      VAULT_ADDRESS: ${{ vars.VAULT_ADDRESS }}
+      REQUIRE_ADAPTER_BEFORE_RANK: ${{ vars.REQUIRE_ADAPTER_BEFORE_RANK }}
+      PORTFOLIO_AUTOMATION_ENABLED: ${{ vars.PORTFOLIO_AUTOMATION_ENABLED }}
+      PORTFOLIO_DRY_RUN: ${{ inputs.dry_run }}
+      ONCHAIN_ENABLED: ${{ vars.ONCHAIN_ENABLED }}
+      NETWORK: ${{ vars.NETWORK }}
+      POOL_DENYLIST: ${{ vars.POOL_DENYLIST }}
+      STRATEGY_BUFFER_PERCENT: ${{ vars.STRATEGY_BUFFER_PERCENT }}
+      SWITCH_COOLDOWN_S: ${{ vars.SWITCH_COOLDOWN_S }}
+
+      # ---- Segreti (Actions → Secrets) ----
+      RPC_URL:        ${{ secrets.RPC_URL }}
+      RPC_FALLBACKS:  ${{ secrets.RPC_FALLBACKS }}
+      PRIVATE_KEY:    ${{ secrets.PRIVATE_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHATID:${{ secrets.TELEGRAM_CHATID }}
+      ALCHEMY_API_KEY:${{ secrets.ALCHEMY_API_KEY }}
+      ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+      THEGRAPH_API_KEY:  ${{ secrets.THEGRAPH_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          pip install -r bots/wave_rotation/requirements.txt
+
+      - name: Validate adapters
+        run: python bots/wave_rotation/validate_adapters.py
+
+      - name: Test pools
+        run: python bots/wave_rotation/test_pools.py
+
+      - name: (Optional) Run strategy one-shot
+        if: ${{ inputs.run_strategy }}
+        run: |
+          echo "Running strategy (one-shot)… DRY_RUN=${PORTFOLIO_DRY_RUN}"
+          python bots/wave_rotation/strategy.py
