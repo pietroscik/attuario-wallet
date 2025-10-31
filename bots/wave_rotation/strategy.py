@@ -19,7 +19,7 @@ import csv
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -46,6 +46,7 @@ from executor import move_capital_smart, settle_day
 from execution_summary import create_execution_summary
 from kill_switch import get_kill_switch
 from logger import append_log, build_telegram_message, timestamp_now
+from metrics_runtime import compute_signals
 from multi_strategy import (
     execute_multi_strategy,
     print_allocation_summary,
@@ -60,6 +61,7 @@ from onchain import (
 )
 from run_lock import acquire_run_lock, RunLockError
 from scoring import daily_cost, daily_rate, normalized_score, should_switch
+from time_series_data import collect_pool_time_series
 from treasury import dispatch_treasury_payout
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -71,6 +73,8 @@ LOG_FILE = BASE_DIR / "log.csv"
 
 DEFAULT_FX_EUR_PER_ETH = 3000.0
 DEFAULT_TREASURY_MIN_EUR = 0.5
+DEFAULT_SCORE_BOOST_UP = 1.1
+DEFAULT_SCORE_PENALTY_DOWN = 0.5
 
 def _parse_env_set(name: str) -> set[str]:
     raw = os.getenv(name, "")
@@ -322,6 +326,7 @@ class StrategyState:
     last_resume_attempt: Optional[str] = None
     last_portfolio_move: Optional[str] = None
     last_switch_ts: Optional[float] = None
+    rotation_state: Dict[str, Dict] = field(default_factory=dict)  # Per-pool rotation state for hysteresis
 
     @staticmethod
     def load(path: Path) -> "StrategyState":
@@ -344,6 +349,7 @@ class StrategyState:
             last_resume_attempt=raw.get("last_resume_attempt"),
             last_portfolio_move=raw.get("last_portfolio_move"),
             last_switch_ts=float(raw.get("last_switch_ts")) if raw.get("last_switch_ts") is not None else None,
+            rotation_state=raw.get("rotation_state", {}),
         )
 
     def save(self, path: Path) -> None:
@@ -362,6 +368,7 @@ class StrategyState:
             "last_resume_attempt": self.last_resume_attempt,
             "last_portfolio_move": self.last_portfolio_move,
             "last_switch_ts": self.last_switch_ts,
+            "rotation_state": self.rotation_state,
         }
         with path.open("w") as fh:
             json.dump(payload, fh, indent=2)
@@ -441,6 +448,93 @@ def send_telegram(msg: str, config: StrategyConfig) -> None:
             print(f"[telegram] error: {r.text}")
     except Exception as exc:  # pragma: no cover - network failure path
         print(f"[telegram] exception: {exc}")
+
+
+def enhance_candidates_with_signals(
+    candidates: List[Dict[str, object]],
+    state: StrategyState,
+    loop_minutes: int = 5,
+) -> List[Dict[str, object]]:
+    """
+    Enhance candidate pools with metrics_runtime signals.
+    
+    Args:
+        candidates: List of candidate pools
+        state: Current strategy state with rotation_state
+        loop_minutes: Loop interval in minutes
+    
+    Returns:
+        Enhanced candidates with signal information
+    """
+    # Get environment variables for metrics_runtime
+    apy_min = float(os.getenv("APY_MIN_ANNUAL", "0.08"))
+    gap_tau = float(os.getenv("APY_GAP_TOL", "0.10"))
+    
+    enhanced = []
+    
+    for candidate in candidates:
+        pool_id = candidate.get("pool_id", "")
+        
+        # Get previous state for this pool
+        prev_state = state.rotation_state.get(pool_id, {})
+        
+        try:
+            # Collect time series data
+            price_series, tvl_series, apy_series = collect_pool_time_series(
+                pool_id, candidate, lookback_days=90
+            )
+            
+            # Compute signals
+            sig, prof = compute_signals(
+                price_series=price_series,
+                tvl_series=tvl_series,
+                apy_series=apy_series,
+                loop_minutes=loop_minutes,
+                apy_min=apy_min,
+                gap_tau=gap_tau,
+                prev_state=prev_state,
+            )
+            
+            # Update rotation state
+            state.rotation_state[pool_id] = {
+                "holding": sig.info["holding"],
+                "in_count": sig.info["confirm_in"],
+                "out_count": sig.info["confirm_out"],
+            }
+            
+            # Enhance candidate with signal data
+            enhanced_candidate = dict(candidate)
+            enhanced_candidate.update({
+                "signal_regime": sig.regime,
+                "signal_score": sig.score,
+                "signal_enter": sig.enter,
+                "signal_exit": sig.exit,
+                "signal_info": sig.info,
+                "loop_profile": {
+                    "resample_rule": prof.resample_rule,
+                    "ema_fast_bars": prof.ema_fast_bars,
+                    "ema_slow_bars": prof.ema_slow_bars,
+                },
+            })
+            
+            # Adjust base score based on signal regime
+            # UP regime: boost score, DOWN regime: penalize score
+            score_boost_up = float(os.getenv("SCORE_BOOST_UP", str(DEFAULT_SCORE_BOOST_UP)))
+            score_penalty_down = float(os.getenv("SCORE_PENALTY_DOWN", str(DEFAULT_SCORE_PENALTY_DOWN)))
+            
+            if sig.regime == "UP" and not sig.exit:
+                enhanced_candidate["score"] = candidate["score"] * score_boost_up
+            elif sig.regime == "DOWN" or sig.exit:
+                enhanced_candidate["score"] = candidate["score"] * score_penalty_down
+            
+            enhanced.append(enhanced_candidate)
+            
+        except Exception as exc:
+            # If signal computation fails, use candidate as-is
+            print(f"[metrics] Failed to compute signals for {pool_id}: {exc}")
+            enhanced.append(candidate)
+    
+    return enhanced
 
 
 def select_best_pool(
@@ -557,6 +651,21 @@ def select_best_pool(
             lookup["__missing_assets__"] = missing_assets_summary
         return None, lookup
 
+    # Enhance candidates with metrics_runtime signals (if enabled)
+    metrics_enabled = os.getenv("ENABLE_ADAPTIVE_METRICS", "true").lower() in {"true", "1", "yes", "on"}
+    loop_minutes = int(os.getenv("LOOP_INTERVAL_MIN", "5"))
+    
+    if metrics_enabled:
+        try:
+            candidates = enhance_candidates_with_signals(candidates, state, loop_minutes)
+            # Update lookup with enhanced candidates
+            for candidate in candidates:
+                pool_id = candidate.get("pool_id")
+                if pool_id:
+                    lookup[pool_id] = candidate
+        except Exception as exc:
+            print(f"[metrics] Failed to enhance candidates: {exc}")
+    
     ranking = sorted(candidates, key=lambda item: item["score"], reverse=True)
     best = ranking[0]
 
@@ -1192,6 +1301,20 @@ def _run_strategy(args: argparse.Namespace, kill_switch) -> None:
         "treasury_total": f"{treasury_total:.6f}",
         "status": status_combined,
     }
+    
+    # Add signal metrics if available
+    if "signal_regime" in working_pool:
+        row["signal_regime"] = working_pool["signal_regime"]
+        row["signal_score"] = f"{working_pool['signal_score']:.6f}"
+        if "signal_info" in working_pool:
+            info = working_pool["signal_info"]
+            row["ema_fast"] = f"{info.get('ema_fast', 0):.6f}"
+            row["ema_slow"] = f"{info.get('ema_slow', 0):.6f}"
+            row["slope"] = f"{info.get('slope', 0):.6f}"
+            row["r7"] = f"{info.get('r7', 0):.6f}"
+            row["drawdown"] = f"{info.get('dd', 0):.6f}"
+            row["vol_down"] = f"{info.get('vol_down', 0):.6f}"
+    
     append_log(row, str(LOG_FILE))
 
     payload = {

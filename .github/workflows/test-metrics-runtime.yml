@@ -1,0 +1,51 @@
+name: Test Metrics Runtime
+
+on:
+  push:
+    branches:
+      - main
+      - 'copilot/**'
+    paths:
+      - 'bots/wave_rotation/metrics_runtime.py'
+      - 'bots/wave_rotation/test_metrics_runtime.py'
+      - 'bots/wave_rotation/requirements.txt'
+      - '.github/workflows/test-metrics-runtime.yml'
+  pull_request:
+    paths:
+      - 'bots/wave_rotation/metrics_runtime.py'
+      - 'bots/wave_rotation/test_metrics_runtime.py'
+      - 'bots/wave_rotation/requirements.txt'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r bots/wave_rotation/requirements.txt
+      
+      - name: Run metrics_runtime tests
+        run: |
+          cd bots/wave_rotation
+          python test_metrics_runtime.py
+      
+      - name: Test module imports
+        run: |
+          cd bots/wave_rotation
+          python -c "from metrics_runtime import compute_signals, LoopProfile, SignalResult; print('✅ Imports successful')"

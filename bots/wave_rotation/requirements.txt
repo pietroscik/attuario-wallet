@@ -4,4 +4,5 @@ requests>=2.31,<3.0
 web3>=6.16,<7.0
 eth-account>=0.10,<1.0
 pandas>=2.2,<3.0
+numpy>=1.26,<2.0
 matplotlib>=3.8,<4.0
