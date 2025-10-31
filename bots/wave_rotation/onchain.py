@@ -17,7 +17,9 @@ import requests
 from eth_account import Account
 from web3 import HTTPProvider, Web3
 from web3.contract.contract import ContractFunction
-from web3.middleware.proof_of_authority import ExtraDataToPOAMiddleware
+# Note: web3.py 6.x uses geth_poa_middleware instead of ExtraDataToPOAMiddleware
+# Requires: web3>=6.16,<7.0 (as specified in requirements.txt)
+from web3.middleware.geth_poa import geth_poa_middleware
 
 from input_validation import validate_ethereum_address, validate_pool_name, validate_percentage, validate_positive_amount
 
@@ -66,7 +68,7 @@ def _make_w3(url: str) -> Web3:
     w = Web3(provider)
     # L2/OP-stack e chain PoA: il middleware non fa danni se non serve
     try:
-        w.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+        w.middleware_onion.inject(geth_poa_middleware, layer=0)
     except ValueError:
         pass
     return w
