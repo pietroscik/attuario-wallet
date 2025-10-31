@@ -1,0 +1,69 @@
+name: Validate Strategy Integration
+
+on:
+  push:
+    branches:
+      - main
+      - 'copilot/**'
+    paths:
+      - 'bots/wave_rotation/strategy.py'
+      - 'bots/wave_rotation/metrics_runtime.py'
+      - 'bots/wave_rotation/scoring.py'
+      - 'bots/wave_rotation/data_sources.py'
+      - '.github/workflows/validate-strategy.yml'
+  pull_request:
+    paths:
+      - 'bots/wave_rotation/strategy.py'
+      - 'bots/wave_rotation/metrics_runtime.py'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r bots/wave_rotation/requirements.txt
+      
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile bots/wave_rotation/metrics_runtime.py
+          python -m py_compile bots/wave_rotation/strategy.py
+          echo "✅ Python syntax validation passed"
+      
+      - name: Check imports
+        run: |
+          cd bots/wave_rotation
+          python -c "import metrics_runtime; print('✅ metrics_runtime imports')"
+          python -c "import strategy; print('✅ strategy imports')"
+      
+      - name: Run basic tests
+        run: |
+          cd bots/wave_rotation
+          python test_metrics_runtime.py
+          echo "✅ Metrics runtime tests passed"
+      
+      - name: Validate environment variables
+        run: |
+          # Check that new env vars are documented
+          grep -q "LOOP_INTERVAL_MIN" .env.example || (echo "❌ LOOP_INTERVAL_MIN not in .env.example" && exit 1)
+          grep -q "APY_MIN_ANNUAL" .env.example || (echo "❌ APY_MIN_ANNUAL not in .env.example" && exit 1)
+          grep -q "APY_GAP_TOL" .env.example || (echo "❌ APY_GAP_TOL not in .env.example" && exit 1)
+          echo "✅ Environment variables documented"
+      
+      - name: Check code quality
+        run: |
+          pip install flake8
+          # Run flake8 with relaxed settings
+          flake8 bots/wave_rotation/metrics_runtime.py --max-line-length=120 --ignore=E501,W503 || echo "⚠️ Code quality warnings (non-blocking)"
+          echo "✅ Code quality check completed"
