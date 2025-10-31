@@ -1,63 +1,63 @@
 name: Run Strategy
-
 on:
   workflow_dispatch:
-
-permissions:
-  contents: read       # solo lettura; nessuna scrittura sul repo
 
 jobs:
   run-strategy:
     runs-on: ubuntu-latest
-    environment: copilot
 
-    # ❗ Nessun secret/token passato agli step
-    env:
-      # Metti SOLO variabili non sensibili (pubbliche) se servono:
-      AAVE_POOL_ADDRESS_8453: ${{ vars.AAVE_POOL_ADDRESS_8453 || '0xA238Dd80C259a72e81d7e4664a9801593F98d1c5' }}
-      AERODROME_ROUTER_8453:  ${{ vars.AERODROME_ROUTER_8453  || '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43' }}
-      WETH_TOKEN_ADDRESS:     ${{ vars.WETH_TOKEN_ADDRESS     || '0x4200000000000000000000000000000000000006' }}
-      USDC_BASE:              ${{ vars.USDC_BASE              || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' }}
-      USDBC_BASE:             ${{ vars.USDBC_BASE             || '0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA' }}
-      USDT_BASE:              ${{ vars.USDT_BASE              || '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2' }}
-      CBBTC_BASE:             ${{ vars.CBBTC_BASE             || '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf' }}
-      CBETH_BASE:             ${{ vars.CBETH_BASE             || '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22' }}
-      WSTETH_BASE:            ${{ vars.WSTETH_BASE            || '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452' }}
-      WETH_YIELD_VAULT_BASE:  ${{ vars.WETH_YIELD_VAULT_BASE  || '0x38989BBA00BDF8181F4082995b3DEAe96163aC5D' }}
-      USDC_ERC4626_VAULT:     ${{ vars.USDC_ERC4626_VAULT     || '0xef417a2512C5a41f69AE4e021648b69a7CdE5D03' }}
-
+    # NIENTE auth, niente gh login
     steps:
-      - name: Checkout (read-only, no credentials persisted)
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: false   # non conserva token git
+          persist-credentials: false
           fetch-depth: 1
 
-      # (Opzionale) Fallback da .env.example per soli valori NON sensibili
-      - name: Load .env.example as fallback (non-sensitive only)
-        if: hashFiles('.env.example') != ''
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Load .env.example into env (only if not already set)
+        shell: bash
         run: |
           while IFS='=' read -r k v; do
             [ -z "$k" ] && continue
             case "$k" in \#*|'') continue;; esac
             if [ -z "${!k}" ]; then
-              echo "$k=$v" >> $GITHUB_ENV
+              echo "$k=$v" >> "$GITHUB_ENV"
             fi
           done < .env.example
 
-      # ❌ NESSUNA installazione/uso di gh
-      # (Se avevi step "resolve_*" che usano gh, lasciali commentati o rimuovili)
-      # - name: Resolve vaults
-      #   run: echo "Resolvers disabilitati: nessuna auth"
+      - name: Set required runtime env & sane defaults
+        shell: bash
+        run: |
+          # Se non presente da secrets/vars/.env.example, usa il public Base RPC
+          : "${RPC_URL:=https://mainnet.base.org}"
+          echo "RPC_URL=$RPC_URL" >> "$GITHUB_ENV"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+          # Dry-run sicuro: nessuna tx on-chain
+          echo "ONCHAIN_ENABLED=false" >> "$GITHUB_ENV"
+          echo "PORTFOLIO_DRY_RUN=true" >> "$GITHUB_ENV"
+          echo "TREASURY_AUTOMATION_ENABLED=false" >> "$GITHUB_ENV"
 
-        # Se requirements contengono solo pacchetti pubblici, ok
+          # Catena Base
+          echo "CHAIN_ID=8453" >> "$GITHUB_ENV"
+
+          # Qualche default utile già verificato
+          echo "DEFILLAMA_API=https://yields.llama.fi" >> "$GITHUB_ENV"
+          echo "WETH_TOKEN_ADDRESS=0x4200000000000000000000000000000000000006" >> "$GITHUB_ENV"
+          echo "USDC_BASE=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" >> "$GITHUB_ENV"
+
+      - name: Show effective env (debug)
+        run: |
+          echo "RPC_URL=$RPC_URL"
+          echo "ONCHAIN_ENABLED=$ONCHAIN_ENABLED"
+          echo "PORTFOLIO_DRY_RUN=$PORTFOLIO_DRY_RUN"
+
       - name: Install dependencies
         run: pip install -r bots/wave_rotation/requirements.txt
 
-      - name: Run strategy
+      - name: Run strategy (dry-run)
         run: python bots/wave_rotation/strategy.py
