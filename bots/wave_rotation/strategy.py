@@ -19,7 +19,7 @@ import csv
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -324,11 +324,7 @@ class StrategyState:
     last_resume_attempt: Optional[str] = None
     last_portfolio_move: Optional[str] = None
     last_switch_ts: Optional[float] = None
-    rotation_state: Dict[str, Dict] = None  # Per-pool rotation state for hysteresis
-
-    def __post_init__(self):
-        if self.rotation_state is None:
-            self.rotation_state = {}
+    rotation_state: Dict[str, Dict] = field(default_factory=dict)  # Per-pool rotation state for hysteresis
 
     @staticmethod
     def load(path: Path) -> "StrategyState":

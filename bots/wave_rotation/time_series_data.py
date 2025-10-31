@@ -59,9 +59,8 @@ def get_price_series_for_pool(
     prices = []
     
     for i in range(lookback_days):
-        # Add some noise to simulate real price action
-        noise = 1.0  # No noise for now
-        price = base_price * ((1 + daily_rate) ** i) * noise
+        # Simple deterministic price evolution (no noise added)
+        price = base_price * ((1 + daily_rate) ** i)
         prices.append(price)
     
     return pd.Series(prices, index=dates)

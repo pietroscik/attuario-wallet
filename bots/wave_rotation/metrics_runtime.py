@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Metrics runtime adattive alla durata del loop.
-- Sceglie finestre EMA/isteresi in base a LOOP_INTERVAL (minuti)
-- Calcola: EMA_fast/slow, slope su EMA_slow (trend), TWR/log-return,
-  downside stdev, max drawdown, ΔTVL/ΔAPY coerenti con la granularità
-- Genera segnali UP/HOLD/DOWN con isteresi
+Adaptive runtime metrics based on loop duration.
+- Selects EMA/hysteresis windows based on LOOP_INTERVAL (minutes)
+- Calculates: EMA_fast/slow, slope on EMA_slow (trend), TWR/log-return,
+  downside stdev, max drawdown, ΔTVL/ΔAPY coherent with granularity
+- Generates UP/HOLD/DOWN signals with hysteresis
 """
 
 from dataclasses import dataclass
@@ -93,6 +93,18 @@ def realized_r(nav: pd.Series, win: int) -> float:
     return float(nav.iloc[-1] / nav.iloc[-1-win] - 1.0)
 
 
+def _calculate_r30_window(prof: LoopProfile) -> int:
+    """Calculate appropriate window for 30-day realized return based on loop minutes."""
+    if prof.loop_minutes >= 60:
+        # For hourly or longer, use direct calculation
+        hours_per_30_days = 30 * 24
+        return max(2, hours_per_30_days // (prof.loop_minutes // 60))
+    else:
+        # For sub-hourly, use a simpler fallback
+        bars_per_day = max(1, (24 * 60) // prof.loop_minutes)
+        return max(2, 30 * bars_per_day)
+
+
 # ---------- Wrapper principale ----------
 @dataclass
 class SignalResult:
@@ -130,10 +142,8 @@ def compute_signals(
     # 3) Rendimento realizzato (coerente con finestra)
     r1 = realized_r(px, 1)
     r7 = realized_r(px, min(7 * max(1, 5 // prof.loop_minutes), 7))  # robust
-    r30 = realized_r(px, max(2, int(30 * 24 * 60 / max(60, prof.loop_minutes)) // (60//(prof.loop_minutes if prof.loop_minutes<60 else 60))))
-    # fallback più semplice se il calcolo sopra risultasse troppo aggressivo:
-    if r30 == 0.0:
-        r30 = realized_r(px, min(len(px)-1, prof.ema_slow_bars))
+    r30_window = _calculate_r30_window(prof)
+    r30 = realized_r(px, min(r30_window, len(px) - 1, prof.ema_slow_bars))
 
     # 4) ΔTVL / ΔAPY coerenti (se forniti)
     dTVL7 = 0.0
