@@ -4,11 +4,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write           # abilita push/tag se i tuoi step li usano
   pull-requests: write
   actions: read
   packages: read
-  id-token: write
 
 jobs:
   run-strategy:
@@ -16,7 +15,7 @@ jobs:
     environment: copilot
 
     env:
-      # === Secrets (sensibili) ===
+      # === Secrets sensibili ===
       RPC_URL:               ${{ secrets.RPC_URL }}
       RPC_FALLBACKS:         ${{ secrets.RPC_FALLBACKS }}
       PRIVATE_KEY:           ${{ secrets.PRIVATE_KEY }}
@@ -25,12 +24,11 @@ jobs:
       TELEGRAM_CHATID:       ${{ secrets.TELEGRAM_CHATID }}
       ALCHEMY_API_KEY:       ${{ secrets.ALCHEMY_API_KEY }}
 
-      # === Protocol addresses (pubblici) ===
+      # === Indirizzi pubblici (con default) ===
       AAVE_POOL_ADDRESS_8453: ${{ vars.AAVE_POOL_ADDRESS_8453 || '0xA238Dd80C259a72e81d7e4664a9801593F98d1c5' }}
       AAVE_WETH_GATEWAY_8453: ${{ vars.AAVE_WETH_GATEWAY_8453 }}
       AERODROME_ROUTER_8453:  ${{ vars.AERODROME_ROUTER_8453  || '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43' }}
 
-      # === Token addresses Base (pubblici) ===
       WETH_TOKEN_ADDRESS:     ${{ vars.WETH_TOKEN_ADDRESS || '0x4200000000000000000000000000000000000006' }}
       USDC_BASE:              ${{ vars.USDC_BASE          || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' }}
       USDBC_BASE:             ${{ vars.USDBC_BASE         || '0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA' }}
@@ -46,38 +44,34 @@ jobs:
       BEEFY_CBETH_WETH_VAULT: ${{ secrets.BEEFY_CBETH_WETH_VAULT }}
       BEEFY_WETH_USDT_VAULT:  ${{ secrets.BEEFY_WETH_USDT_VAULT }}
 
-      # === ERC-4626 ===
+      # === ERC-4626 / Yearn / Compound / Moonwell / Morpho ===
       WETH_YIELD_VAULT_BASE:  ${{ vars.WETH_YIELD_VAULT_BASE || '0x38989BBA00BDF8181F4082995b3DEAe96163aC5D' }}
       CBBTC_ERC4626_VAULT:    ${{ vars.CBBTC_ERC4626_VAULT }}
       USDC_ERC4626_VAULT:     ${{ vars.USDC_ERC4626_VAULT    || '0xef417a2512C5a41f69AE4e021648b69a7CdE5D03' }}
 
-      # === Yearn (lascia vuote se si risolvono a runtime) ===
       YEARN_USDC_VAULT_BASE:  ${{ vars.YEARN_USDC_VAULT_BASE }}
       YEARN_WETH_VAULT_BASE:  ${{ vars.YEARN_WETH_VAULT_BASE }}
       YEARN_CBBTC_VAULT_BASE: ${{ vars.YEARN_CBBTC_VAULT_BASE }}
 
-      # === Compound / Moonwell ===
-      COMET_USDC_MARKET_BASE:   ${{ vars.COMET_USDC_MARKET_BASE  || '0x46e6b214b524310239732D51387075E0e70970bf' }}
-      COMET_USDBC_MARKET_BASE:  ${{ vars.COMET_USDBC_MARKET_BASE || '0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf' }}
-      MOONWELL_CBETH_CTOKEN:    ${{ vars.MOONWELL_CBETH_CTOKEN   || '0x3bf93770f2d4a794c3d9EBEfBAeBAE2a8f09A5E5' }}
-      MOONWELL_WETH_CTOKEN:     ${{ vars.MOONWELL_WETH_CTOKEN    || '0x628ff693426583D9a7FB391E54366292F509D457' }}
-      MOONWELL_USDC_CTOKEN:     ${{ vars.MOONWELL_USDC_CTOKEN    || '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22' }}
+      COMET_USDC_MARKET_BASE:  ${{ vars.COMET_USDC_MARKET_BASE  || '0x46e6b214b524310239732D51387075E0e70970bf' }}
+      COMET_USDBC_MARKET_BASE: ${{ vars.COMET_USDBC_MARKET_BASE || '0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf' }}
+      MOONWELL_CBETH_CTOKEN:   ${{ vars.MOONWELL_CBETH_CTOKEN   || '0x3bf93770f2d4a794c3d9EBEfBAeBAE2a8f09A5E5' }}
+      MOONWELL_WETH_CTOKEN:    ${{ vars.MOONWELL_WETH_CTOKEN    || '0x628ff693426583D9a7FB391E54366292F509D457' }}
+      MOONWELL_USDC_CTOKEN:    ${{ vars.MOONWELL_USDC_CTOKEN    || '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22' }}
 
-      # === Morpho (placeholder ok) ===
-      MORPHO_USDC_VAULT_BASE: ${{ vars.MORPHO_USDC_VAULT_BASE || '0xef417a2512C5a41f69AE4e021648b69a7CdE5D03' }}
-      MORPHO_WETH_VAULT_BASE: ${{ vars.MORPHO_WETH_VAULT_BASE || '0x38989BBA00BDF8181F4082995b3DEAe96163aC5D' }}
+      MORPHO_USDC_VAULT_BASE:  ${{ vars.MORPHO_USDC_VAULT_BASE || '0xef417a2512C5a41f69AE4e021648b69a7CdE5D03' }}
+      MORPHO_WETH_VAULT_BASE:  ${{ vars.MORPHO_WETH_VAULT_BASE || '0x38989BBA00BDF8181F4082995b3DEAe96163aC5D' }}
 
     steps:
-      - name: Checkout (PAT fallback)
+      - name: Checkout (use PAT)
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT || github.token }}
+          token: ${{ secrets.GH_PAT }}    # >>> usa il tuo PAT dell'ambiente "copilot"
 
       - name: Setup tools
         run: sudo apt-get update && sudo apt-get install -y jq gh
 
-      # NIENTE login: gh usa GH_TOKEN se presente
-      # Fallback opzionale da .env.example (solo se esiste e solo per chiavi non già in env)
+      # (Opzionale) fallback da .env.example, non sovrascrive env/secrets già presenti
       - name: Load .env.example as fallback (non-sensitive only)
         if: hashFiles('.env.example') != ''
         run: |
@@ -89,35 +83,44 @@ jobs:
             fi
           done < .env.example
 
-      # Resolve dinamici (passiamo GH_TOKEN ma senza login)
+      # ====== I tuoi resolver che usano gh ======
+      # Passiamo GH_TOKEN SOLO qui; nessun login.
       - name: Resolve Beefy vaults (Base)
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}   # gh userà direttamente questo token
           ENV_NAME: copilot
+          GH_HOST: github.com
+          GH_NO_UPDATE_NOTIFIER: 1
         run: |
           scripts/resolve_beefy_vaults.sh
           env | grep -E '^BEEFY_.*_VAULT=' || true
 
       - name: Resolve Yearn vaults (Base)
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_NAME: copilot
+          GH_HOST: github.com
+          GH_NO_UPDATE_NOTIFIER: 1
         run: |
           scripts/resolve_yearn_vaults.sh
           env | grep -E '^YEARN_.*_VAULT=' || true
 
       - name: Resolve Compound/Moonwell markets (Base)
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_NAME: copilot
+          GH_HOST: github.com
+          GH_NO_UPDATE_NOTIFIER: 1
         run: |
           scripts/resolve_compound_markets.sh
           env | grep -E '^(COMET_|MOONWELL_)' || true
 
       - name: Resolve ERC-4626 vaults (Base)
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_NAME: copilot
+          GH_HOST: github.com
+          GH_NO_UPDATE_NOTIFIER: 1
         run: |
           scripts/resolve_erc4626_vaults.sh
           env | grep -E '_ERC4626_VAULT=' || true
@@ -128,7 +131,7 @@ jobs:
           [ -z "$AAVE_WETH_GATEWAY_8453" ] && echo "⚠️ AAVE_WETH_GATEWAY_8453 not set → skip Aave WETH adapter."
           [ -z "$CBBTC_ERC4626_VAULT" ]   && echo "⚠️ CBBTC_ERC4626_VAULT not set → skip CBBTC 4626 adapter."
           for v in BEEFY_USDC_USDT_VAULT BEEFY_WETH_USDC_VAULT BEEFY_CBETH_WETH_VAULT BEEFY_WETH_USDT_VAULT; do
-            [ -z "${!v}" ] && echo "ℹ️  $v non impostato → relativo adapter Beefy skippato (se previsto)."
+            [ -z "${!v}" ] && echo "ℹ️  $v non impostato → adapter Beefy relativo skippato (se previsto)."
           done
 
       - name: Setup Python
@@ -140,7 +143,9 @@ jobs:
         run: pip install -r bots/wave_rotation/requirements.txt
 
       - name: Run strategy
+        # Se la tua strategy.py invoca gh, passa anche qui GH_TOKEN
         env:
-          # se gli script Python usano gh, passiamo GH_TOKEN anche qui
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_HOST: github.com
+          GH_NO_UPDATE_NOTIFIER: 1
         run: python bots/wave_rotation/strategy.py
