@@ -83,14 +83,14 @@ jobs:
 
       - name: Verify imports
         run: |
-          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/bots/wave_rotation"
           echo "🔍 Verifying critical imports..."
           python -c "import bots.wave_rotation.strategy; print('✅ Strategy imports OK')"
           python -c "import bots.wave_rotation.adapter_utils; print('✅ Adapter utils imports OK')"
 
       - name: Verify adapter coverage
         run: |
-          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/bots/wave_rotation"
           set -euo pipefail
           echo "🔍 Verifying adapter coverage..."
           python -m bots.wave_rotation.adapter_utils validate --config bots/wave_rotation/config.json
@@ -118,7 +118,7 @@ jobs:
 
       - name: Strategy dry-run test
         run: |
-          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/bots/wave_rotation"
           set -euo pipefail
           set -a; source <(env | grep -E '^(AAVE_|USDC_|WETH_|AERODROME_|YEARN_|COMET_|MOONWELL_|MORPHO_|BEEFY_|CBBTC_|CBETH_|EURC_|USDT_|USDBC_|UNISWAP_|SPARK_|SEAMLESS_|STEAKHOUSE_|SEARCH_SCOPE|ALLOWED_CHAIN_IDS|REQUIRE_ADAPTER_BEFORE_RANK|PORTFOLIO_DRY_RUN|ONCHAIN_ENABLED|VAULT_ABI_SOURCE|RPC_URL|PRIVATE_KEY|ETHERSCAN_API_KEY|TELEGRAM_)'); set +a
           
