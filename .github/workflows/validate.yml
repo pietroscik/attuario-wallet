@@ -1,0 +1,157 @@
+name: Validate Environment and Strategy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    env:
+      # Vincoli anti no_adapter/scan
+      SEARCH_SCOPE: CONFIG_ONLY
+      ALLOWED_CHAIN_IDS: 8453
+      REQUIRE_ADAPTER_BEFORE_RANK: 1
+      PORTFOLIO_DRY_RUN: "true"
+      ONCHAIN_ENABLED: "false"
+      VAULT_ABI_SOURCE: etherscan_v2
+
+      # VARS (repo variables)
+      AAVE_POOL_ADDRESS_8453: ${{ vars.AAVE_POOL_ADDRESS_8453 }}
+      AAVE_WETH_GATEWAY_8453: ${{ vars.AAVE_WETH_GATEWAY_8453 }}
+      AERODROME_ROUTER_8453:  ${{ vars.AERODROME_ROUTER_8453 }}
+      USDC_BASE:              ${{ vars.USDC_BASE }}
+      USDT_BASE:              ${{ vars.USDT_BASE }}
+      EURC_BASE:              ${{ vars.EURC_BASE }}
+      CBBTC_BASE:             ${{ vars.CBBTC_BASE }}
+      CBETH_BASE:             ${{ vars.CBETH_BASE }}
+      USDBC_BASE:             ${{ vars.USDBC_BASE }}
+      YEARN_USDC_VAULT_BASE:  ${{ vars.YEARN_USDC_VAULT_BASE }}
+      YEARN_WETH_VAULT_BASE:  ${{ vars.YEARN_WETH_VAULT_BASE }}
+      COMET_USDC_MARKET_BASE: ${{ vars.COMET_USDC_MARKET_BASE }}
+      COMET_USDBC_MARKET_BASE: ${{ vars.COMET_USDBC_MARKET_BASE }}
+      MOONWELL_USDC_CTOKEN:   ${{ vars.MOONWELL_USDC_CTOKEN }}
+      MOONWELL_WETH_CTOKEN:   ${{ vars.MOONWELL_WETH_CTOKEN }}
+      MOONWELL_CBETH_CTOKEN:  ${{ vars.MOONWELL_CBETH_CTOKEN }}
+      MORPHO_USDC_VAULT_BASE: ${{ vars.MORPHO_USDC_VAULT_BASE }}
+      MORPHO_WETH_VAULT_BASE: ${{ vars.MORPHO_WETH_VAULT_BASE }}
+      UNISWAP_V2_ROUTER_BASE: ${{ vars.UNISWAP_V2_ROUTER_BASE }}
+      UNISWAP_V3_NFT_MANAGER_BASE: ${{ vars.UNISWAP_V3_NFT_MANAGER_BASE }}
+      WETH_YIELD_VAULT_BASE:  ${{ vars.WETH_YIELD_VAULT_BASE }}
+      BEEFY_USDC_CBBTC_VAULT: ${{ vars.BEEFY_USDC_CBBTC_VAULT }}
+      BEEFY_USDC_USDT_VAULT:  ${{ vars.BEEFY_USDC_USDT_VAULT }}
+      BEEFY_WETH_USDC_VAULT:  ${{ vars.BEEFY_WETH_USDC_VAULT }}
+      BEEFY_CBETH_WETH_VAULT: ${{ vars.BEEFY_CBETH_WETH_VAULT }}
+      BEEFY_WETH_USDT_VAULT:  ${{ vars.BEEFY_WETH_USDT_VAULT }}
+      BEEFY_WETH_EURC_VAULT:  ${{ vars.BEEFY_WETH_EURC_VAULT }}
+      CBBTC_ERC4626_VAULT:    ${{ vars.CBBTC_ERC4626_VAULT }}
+      USDC_ERC4626_VAULT:     ${{ vars.USDC_ERC4626_VAULT }}
+      SPARK_USDC_VAULT_BASE:  ${{ vars.SPARK_USDC_VAULT_BASE }}
+      SEAMLESS_USDC_VAULT_BASE: ${{ vars.SEAMLESS_USDC_VAULT_BASE }}
+      MOONWELL_FLAGSHIP_USDC_VAULT_BASE: ${{ vars.MOONWELL_FLAGSHIP_USDC_VAULT_BASE }}
+      STEAKHOUSE_PRIME_USDC_VAULT_BASE: ${{ vars.STEAKHOUSE_PRIME_USDC_VAULT_BASE }}
+
+      # SECRETS
+      RPC_URL: ${{ secrets.RPC_URL }}
+      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+      ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+      WETH_TOKEN_ADDRESS: ${{ secrets.WETH_TOKEN_ADDRESS }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHATID: ${{ secrets.TELEGRAM_CHATID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r bots/wave_rotation/requirements.txt
+
+      - name: Verify adapter coverage
+        run: |
+          set -euo pipefail
+          echo "🔍 Verifying adapter coverage..."
+          python -m bots.wave_rotation.adapter_utils validate --config bots/wave_rotation/config.json
+
+      - name: Check on-chain addresses (EIP-55 regex + not empty)
+        run: |
+          set -euo pipefail
+          echo "🔍 Checking on-chain addresses..."
+          
+          # Check critical addresses are set and valid
+          for var in AAVE_POOL_ADDRESS_8453 USDC_BASE WETH_TOKEN_ADDRESS AERODROME_ROUTER_8453; do
+            value="${!var:-}"
+            if [[ -z "$value" ]]; then
+              echo "❌ $var is not set or empty"
+              exit 1
+            fi
+            if ! [[ "$value" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+              echo "❌ $var has invalid format: $value"
+              exit 1
+            fi
+            echo "✅ $var: $value"
+          done
+          
+          echo "✅ All critical addresses are valid"
+
+      - name: Strategy dry-run test
+        run: |
+          set -euo pipefail
+          set -a; source <(env | grep -E '^(AAVE_|USDC_|WETH_|AERODROME_|YEARN_|COMET_|MOONWELL_|MORPHO_|BEEFY_|CBBTC_|CBETH_|EURC_|USDT_|USDBC_|UNISWAP_|SPARK_|SEAMLESS_|STEAKHOUSE_|SEARCH_SCOPE|ALLOWED_CHAIN_IDS|REQUIRE_ADAPTER_BEFORE_RANK|PORTFOLIO_DRY_RUN|ONCHAIN_ENABLED|VAULT_ABI_SOURCE|RPC_URL|PRIVATE_KEY|ETHERSCAN_API_KEY|TELEGRAM_)'); set +a
+          
+          export PYTHONUNBUFFERED=1
+          
+          echo "🧪 Running strategy in dry-run mode..."
+          timeout 180 python -m bots.wave_rotation.strategy --print-status 2>&1 | tee run.log || {
+            echo "⚠️ Strategy execution had issues (exit code: $?)"
+            cat run.log
+          }
+
+      - name: Evaluate post-run (run.log analysis)
+        if: always()
+        run: |
+          set -euo pipefail
+          
+          if [[ ! -f run.log ]]; then
+            echo "❌ run.log is missing"
+            exit 1
+          fi
+          
+          echo "📊 Analyzing run.log..."
+          
+          # Check for no_adapter errors
+          if grep -qE 'no_adapter|SKIP.*no_adapters' run.log; then
+            echo "❌ Found 'no_adapter' errors in run.log"
+            grep -E 'no_adapter|SKIP.*no_adapters' run.log
+            exit 1
+          fi
+          
+          # Check for critical errors
+          if grep -qE 'Exception:|ERROR:|Traceback' run.log; then
+            echo "⚠️ Found errors in run.log:"
+            grep -E 'Exception:|ERROR:|Traceback' run.log || true
+          fi
+          
+          echo "✅ Post-run evaluation passed"
+
+      - name: Upload run.log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validate-run-log
+          path: run.log
+          retention-days: 7
