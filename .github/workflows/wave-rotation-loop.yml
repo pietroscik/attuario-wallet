@@ -114,12 +114,62 @@ jobs:
         run: |
           grep -E 'best=|active=|Score|score_|APY|r_day|r_interval|moltiplicatore|Stato|executed|SKIP|cooldown|buffer|onchain|Treasury|no_adapter|denylist|Exception|ERROR|revert|fallback|timeout' -n run.log || true
 
-      - name: Fail if no adapters
+      - name: Evaluate loop (post-run checks)
         if: always()
         run: |
-          if grep -qE 'no_adapter|SKIP.*no_adapters' run.log; then
-            echo "❌ Nessun adapter valido per i pool selezionati"; exit 1;
+          set -euo pipefail
+          
+          echo "🔍 Evaluating loop execution..."
+          
+          # Check if run.log exists
+          if [[ ! -f run.log ]]; then
+            echo "❌ run.log is missing"
+            exit 1
           fi
+          
+          # Check for no_adapter errors
+          if grep -qE 'no_adapter|SKIP.*no_adapters' run.log; then
+            echo "❌ Found 'no_adapter' errors in loop execution"
+            grep -E 'no_adapter|SKIP.*no_adapters' run.log
+            exit 1
+          fi
+          
+          # Check for required fields in output
+          missing_fields=""
+          
+          if ! grep -qE 'best=|Best pool' run.log; then
+            missing_fields="${missing_fields}best= "
+          fi
+          
+          if ! grep -qE 'active=|Active pool|Stato attivo' run.log; then
+            missing_fields="${missing_fields}active= "
+          fi
+          
+          if ! grep -qE 'APY|apy' run.log; then
+            missing_fields="${missing_fields}APY "
+          fi
+          
+          if ! grep -qE 'r_day|Daily return' run.log; then
+            missing_fields="${missing_fields}r_day "
+          fi
+          
+          if ! grep -qE 'r_interval|r_net_interval' run.log; then
+            missing_fields="${missing_fields}r_interval "
+          fi
+          
+          if [[ -n "$missing_fields" ]]; then
+            echo "❌ Missing required fields in run.log: $missing_fields"
+            exit 1
+          fi
+          
+          # Check for NaN or Inf in APY values
+          if grep -qE 'APY.*[Nn][Aa][Nn]|APY.*[Ii]nf|apy.*[Nn][Aa][Nn]|apy.*[Ii]nf' run.log; then
+            echo "❌ Found NaN or Inf in APY values"
+            grep -E 'APY.*[Nn][Aa][Nn]|APY.*[Ii]nf|apy.*[Nn][Aa][Nn]|apy.*[Ii]nf' run.log
+            exit 1
+          fi
+          
+          echo "✅ Loop evaluated OK - all checks passed"
 
       - name: Upload run.log
         if: always()

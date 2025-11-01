@@ -5,7 +5,11 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import os
+import re
+import sys
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 try:
@@ -119,3 +123,142 @@ def get_adapter_config(config: Union[Dict[str, object], object], pool_id: str) -
     if key_without_prefix in adapters:
         return adapters[key_without_prefix]
     return None
+
+
+def validate_adapter_coverage(config_path: str) -> int:
+    """
+    Validate adapter coverage from config file.
+    Returns 0 on success, 1 on validation failure.
+    """
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print(f"❌ Config file not found: {config_path}")
+        return 1
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in config: {e}")
+        return 1
+
+    adapters = config.get("adapters", {})
+    if not adapters:
+        print("❌ No adapters configured")
+        return 1
+
+    # Basic Ethereum address pattern (0x followed by 40 hex chars)
+    # Note: This validates format only, not EIP-55 checksum compliance
+    address_pattern = re.compile(r'^0x[a-fA-F0-9]{40}$')
+    
+    missing_vars = []
+    invalid_addresses = []
+    total_adapters = len(adapters)
+    valid_adapters = 0
+
+    for pool_id, adapter_cfg in adapters.items():
+        adapter_type = str(adapter_cfg.get("type", "unknown"))
+        required_fields = REQUIRED_TOKEN_FIELDS.get(adapter_type, ())
+        
+        # Also check other required fields like pool, vault, router, market, etc.
+        extra_required = []
+        if adapter_type == "aave_v3":
+            extra_required = ["pool"]
+        elif adapter_type in ["erc4626", "yearn"]:
+            extra_required = ["vault"]
+        elif adapter_type == "lp_beefy_aero":
+            extra_required = ["router", "beefy_vault"]
+        elif adapter_type == "comet":
+            extra_required = ["market"]
+        elif adapter_type == "ctoken":
+            extra_required = ["ctoken"]
+        
+        all_required = list(required_fields) + extra_required
+        pool_valid = True
+        
+        for field in all_required:
+            value = adapter_cfg.get(field, "")
+            
+            # Check if it's an env var reference
+            if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                env_var = value[2:-1]
+                resolved = os.getenv(env_var, "")
+                
+                if not resolved:
+                    missing_vars.append(f"{pool_id}: {env_var} (field: {field})")
+                    pool_valid = False
+                elif not address_pattern.match(resolved):
+                    invalid_addresses.append(f"{pool_id}: {env_var}={resolved} (invalid address format)")
+                    pool_valid = False
+            elif isinstance(value, str) and value.startswith("0x"):
+                # Direct address in config
+                if not address_pattern.match(value):
+                    invalid_addresses.append(f"{pool_id}: {field}={value} (invalid address format)")
+                    pool_valid = False
+            else:
+                # Required field is missing or empty
+                missing_vars.append(f"{pool_id}: {field} (missing or empty)")
+                pool_valid = False
+        
+        if pool_valid:
+            valid_adapters += 1
+
+    print("=" * 80)
+    print("ADAPTER COVERAGE VALIDATION")
+    print("=" * 80)
+    print(f"Total adapters: {total_adapters}")
+    print(f"Valid adapters: {valid_adapters}")
+    print(f"Invalid adapters: {total_adapters - valid_adapters}")
+    print()
+
+    if missing_vars:
+        print("❌ MISSING ENVIRONMENT VARIABLES:")
+        for msg in missing_vars:
+            print(f"  • {msg}")
+        print()
+
+    if invalid_addresses:
+        print("❌ INVALID ADDRESSES (incorrect format):")
+        for msg in invalid_addresses:
+            print(f"  • {msg}")
+        print()
+
+    if missing_vars or invalid_addresses:
+        print("=" * 80)
+        print("❌ VALIDATION FAILED")
+        print("=" * 80)
+        return 1
+    
+    print("=" * 80)
+    print("✅ VALIDATION PASSED - All adapters have valid configuration")
+    print("=" * 80)
+    return 0
+
+
+def main() -> int:
+    """CLI entry point for adapter_utils."""
+    parser = argparse.ArgumentParser(
+        description="Adapter utilities for Wave Rotation strategy"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+    
+    # Validate command
+    validate_parser = subparsers.add_parser(
+        "validate",
+        help="Validate adapter coverage and configuration"
+    )
+    validate_parser.add_argument(
+        "--config",
+        default="bots/wave_rotation/config.json",
+        help="Path to config.json file (default: bots/wave_rotation/config.json)"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.command == "validate":
+        return validate_adapter_coverage(args.config)
+    else:
+        parser.print_help()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
