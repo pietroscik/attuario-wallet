@@ -108,6 +108,10 @@ jobs:
           # Token addresses (Base chain)
           WETH_TOKEN_ADDRESS=${{ env.WETH_TOKEN_ADDRESS }}
           USDC_BASE=${{ env.USDC_BASE }}
+          
+          # Telegram notifications (from secrets)
+          TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHATID=${{ secrets.TELEGRAM_CHATID }}
           EOF
           
           echo "✅ Created ephemeral .env file"
