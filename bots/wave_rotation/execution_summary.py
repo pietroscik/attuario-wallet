@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 
@@ -219,7 +219,7 @@ def create_execution_summary(
     Returns:
         ExecutionSummary instance
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     run_id = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S UTC")
     

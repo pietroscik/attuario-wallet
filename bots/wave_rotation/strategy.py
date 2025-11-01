@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 try:  # Optional dependency – allows tests to import without network libs
     import requests
@@ -42,6 +42,11 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for minimal envs
         return False
 
 from data_sources import fetch_pools_scoped
+from adapter_utils import (
+    adapter_required_tokens,
+    gather_required_token_labels,
+    get_adapter_config,
+)
 from executor import move_capital_smart, settle_day
 from execution_summary import create_execution_summary
 from kill_switch import get_kill_switch
@@ -63,6 +68,7 @@ from run_lock import acquire_run_lock, RunLockError
 from scoring import daily_cost, daily_rate, normalized_score, should_switch
 from time_series_data import collect_pool_time_series
 from treasury import dispatch_treasury_payout
+from wallet_scanner import scan_wallet
 
 BASE_DIR = Path(__file__).resolve().parent
 CAPITAL_FILE = BASE_DIR / "capital.txt"
@@ -91,53 +97,6 @@ def _parse_env_set(name: str) -> set[str]:
 POOL_ALLOWLIST = _parse_env_set("POOL_ALLOWLIST")
 POOL_DENYLIST = _parse_env_set("POOL_DENYLIST")
 
-REQUIRED_TOKEN_FIELDS: Dict[str, Sequence[str]] = {
-    "erc4626": ("asset",),
-    "yearn": ("asset",),
-    "comet": ("asset",),
-    "ctoken": ("asset",),
-    "aave_v3": ("asset",),
-    "lp_beefy_aero": ("token0", "token1"),
-    "uniswap_v2": ("token0", "token1"),
-    "uniswap_v3": ("token0", "token1"),
-    "aerodrome_v1": ("token0", "token1"),
-    "aerodrome_slipstream": ("token0", "token1"),
-    "beefy_vault": (),  # Uses want() from vault
-    "raydium_amm": ("token0", "token1"),
-    "hyperion": ("token0", "token1"),
-    "balancer_v3": (),  # Multi-token pools
-    "spectra_v2": (),  # Yield tokenization
-    "vaultcraft": ("asset",),
-    "yield_yak": ("asset",),
-    "etherex_cl": ("token0", "token1"),
-    "peapods_finance": ("asset",),
-}
-
-ERC20_BALANCE_DECIMALS_ABI = json.loads(
-    """
-[
-  {
-    "constant": true,
-    "inputs": [{"name": "account", "type": "address"}],
-    "name": "balanceOf",
-    "outputs": [{"name": "", "type": "uint256"}],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [],
-    "name": "decimals",
-    "outputs": [{"name": "", "type": "uint8"}],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  }
-]
-"""
-)
-
 
 def _token_balance_threshold() -> float:
     raw = os.getenv("POOL_TOKEN_MIN_BALANCE", "1e-6")
@@ -145,123 +104,6 @@ def _token_balance_threshold() -> float:
         return float(raw)
     except ValueError:
         return 1e-6
-
-
-def _extract_token_field(value: object, field_name: str) -> Optional[Tuple[str, str]]:
-    if value is None:
-        return None
-
-    label = field_name
-    env_name = None
-    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
-        env_name = value[2:-1]
-        resolved = os.getenv(env_name, "")
-        if env_name:
-            label = env_name
-    else:
-        resolved = value
-
-    if not isinstance(resolved, str):
-        return None
-
-    resolved = resolved.strip()
-    if not resolved or not resolved.startswith("0x"):
-        return None
-
-    try:
-        checksum = Web3.to_checksum_address(resolved) if Web3 is not None else resolved
-    except Exception:
-        checksum = resolved
-
-    addr_lower = checksum.lower()
-
-    if env_name is None and label == field_name:
-        for name, env_val in os.environ.items():
-            if isinstance(env_val, str) and env_val.lower() == addr_lower:
-                label = name
-                break
-
-    return addr_lower, label
-
-
-def _adapter_required_tokens(adapter_cfg: Optional[Dict[str, object]]) -> List[Tuple[str, str]]:
-    if not adapter_cfg:
-        return []
-    adapter_type = str(adapter_cfg.get("type") or "").lower()
-    fields = REQUIRED_TOKEN_FIELDS.get(adapter_type, ())
-    tokens: List[Tuple[str, str]] = []
-    for field in fields:
-        spec = _extract_token_field(adapter_cfg.get(field), field)
-        if spec:
-            tokens.append(spec)
-    return tokens
-
-
-def _gather_required_token_labels(config: StrategyConfig) -> Dict[str, str]:
-    labels: Dict[str, str] = {}
-    for adapter_cfg in config.adapters.values():
-        for addr, label in _adapter_required_tokens(adapter_cfg):
-            labels.setdefault(addr, label)
-    return labels
-
-
-def _get_adapter_config(config: StrategyConfig, pool_id: str) -> Optional[Dict[str, object]]:
-    if pool_id in config.adapters:
-        return config.adapters[pool_id]
-    key_with_prefix = pool_id if pool_id.startswith("pool:") else f"pool:{pool_id}"
-    if key_with_prefix in config.adapters:
-        return config.adapters[key_with_prefix]
-    key_without_prefix = pool_id[5:] if pool_id.startswith("pool:") else pool_id
-    if key_without_prefix in config.adapters:
-        return config.adapters[key_without_prefix]
-    return None
-
-
-def collect_wallet_assets(
-    config: StrategyConfig,
-    w3,
-    account_address: Optional[str],
-) -> Tuple[Dict[str, float], Dict[str, str]]:
-    token_labels = dict(_gather_required_token_labels(config))
-    token_labels["native"] = "ETH"
-    balances: Dict[str, float] = {key: 0.0 for key in token_labels}
-
-    if w3 is None or Web3 is None or account_address is None:
-        return balances, token_labels
-
-    try:
-        checksum_account = Web3.to_checksum_address(account_address)
-    except Exception:
-        checksum_account = account_address
-
-    try:
-        native_balance = w3.eth.get_balance(checksum_account)
-        balances["native"] = float(Web3.from_wei(native_balance, "ether"))
-    except Exception:
-        pass
-
-    decimals_cache: Dict[str, int] = {}
-    for addr, label in token_labels.items():
-        if addr == "native":
-            continue
-        try:
-            checksum_token = Web3.to_checksum_address(addr)
-        except Exception:
-            checksum_token = addr
-        try:
-            contract = w3.eth.contract(address=checksum_token, abi=ERC20_BALANCE_DECIMALS_ABI)
-            if addr not in decimals_cache:
-                decimals_cache[addr] = contract.functions.decimals().call()
-            decimals = decimals_cache[addr]
-            raw_balance = contract.functions.balanceOf(checksum_account).call()
-            balances[addr] = float(raw_balance) / (10 ** decimals)
-        except Exception:
-            balances.setdefault(addr, 0.0)
-            continue
-
-    return balances, token_labels
-
-
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
@@ -616,12 +458,12 @@ def select_best_pool(
             diagnostics.append(f"{pool_id}:denied(denylist)")
             continue
 
-        adapter_cfg = _get_adapter_config(config, pool_id)
+        adapter_cfg = get_adapter_config(config, pool_id)
         if not adapter_cfg:
             diagnostics.append(f"{pool_id}:no_adapter")
             continue
 
-        requirements = _adapter_required_tokens(adapter_cfg)
+        requirements = adapter_required_tokens(adapter_cfg)
         if requirements:
             missing_local: List[str] = []
             for addr, label in requirements:
@@ -886,13 +728,12 @@ def _run_strategy(args: argparse.Namespace, kill_switch) -> None:
 
     reserve_eth = float(os.getenv("GAS_RESERVE_ETH", "0.004"))
     available_onchain = get_available_capital_eth(reserve_eth)
-    wallet_balances: Dict[str, float] = {}
-    wallet_labels: Dict[str, str] = {}
     account_address = account.address if account is not None else None
-    wallet_balances, wallet_labels = collect_wallet_assets(
+    holdings, wallet_balances, wallet_labels = scan_wallet(
         config,
         w3,
         account_address,
+        min_dust_usd=0.0,
     )
 
     capital_file_exists = CAPITAL_FILE.exists()
@@ -921,6 +762,7 @@ def _run_strategy(args: argparse.Namespace, kill_switch) -> None:
         # Execute multi-strategy
         allocations, execution_results = execute_multi_strategy(
             config_dict_full,
+            holdings,
             wallet_balances,
             wallet_labels,
             w3,

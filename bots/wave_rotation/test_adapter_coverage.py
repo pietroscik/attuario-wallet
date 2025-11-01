@@ -11,8 +11,8 @@ BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
 
 
-def test_adapter_types():
-    """Test that all adapter types are properly configured."""
+def _check_adapter_types() -> bool:
+    """Validate presence of expected adapter types."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -43,8 +43,12 @@ def test_adapter_types():
     return True
 
 
-def test_adapter_count():
-    """Test that we have expanded adapter coverage."""
+def test_adapter_types():
+    assert _check_adapter_types()
+
+
+def _check_adapter_count() -> bool:
+    """Ensure adapter coverage meets minimum expectations."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -60,8 +64,12 @@ def test_adapter_count():
     return True
 
 
-def test_protocol_diversity():
-    """Test that we cover multiple protocols."""
+def test_adapter_count():
+    assert _check_adapter_count()
+
+
+def _check_protocol_diversity() -> bool:
+    """Verify protocol distribution across adapters."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -88,8 +96,12 @@ def test_protocol_diversity():
     return True
 
 
-def test_asset_diversity():
-    """Test that we support multiple assets."""
+def test_protocol_diversity():
+    assert _check_protocol_diversity()
+
+
+def _check_asset_diversity() -> bool:
+    """Confirm we support multiple underlying assets."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -126,8 +138,12 @@ def test_asset_diversity():
     return True
 
 
-def test_chain_coverage():
-    """Test that we focus on Base chain."""
+def test_asset_diversity():
+    assert _check_asset_diversity()
+
+
+def _check_chain_coverage() -> bool:
+    """Verify chain distribution (Base focus)."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -154,8 +170,12 @@ def test_chain_coverage():
     return True
 
 
-def test_new_protocols():
-    """Test that new protocols are configured."""
+def test_chain_coverage():
+    assert _check_chain_coverage()
+
+
+def _check_new_protocols() -> bool:
+    """Ensure recently added protocol families are present."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -186,8 +206,12 @@ def test_new_protocols():
     return True
 
 
-def test_config_structure():
-    """Test that config has all required sections."""
+def test_new_protocols():
+    assert _check_new_protocols()
+
+
+def _check_config_structure() -> bool:
+    """Validate top-level sections in strategy config."""
     with CONFIG_PATH.open() as f:
         config = json.load(f)
     
@@ -202,6 +226,10 @@ def test_config_structure():
     return True
 
 
+def test_config_structure():
+    assert _check_config_structure()
+
+
 def main():
     """Run all tests."""
     print("=" * 80)
@@ -209,13 +237,13 @@ def main():
     print("=" * 80)
     
     tests = [
-        ("Config Structure", test_config_structure),
-        ("Adapter Types", test_adapter_types),
-        ("Adapter Count", test_adapter_count),
-        ("Protocol Diversity", test_protocol_diversity),
-        ("Asset Diversity", test_asset_diversity),
-        ("Chain Coverage", test_chain_coverage),
-        ("New Protocols", test_new_protocols),
+        ("Config Structure", _check_config_structure),
+        ("Adapter Types", _check_adapter_types),
+        ("Adapter Count", _check_adapter_count),
+        ("Protocol Diversity", _check_protocol_diversity),
+        ("Asset Diversity", _check_asset_diversity),
+        ("Chain Coverage", _check_chain_coverage),
+        ("New Protocols", _check_new_protocols),
     ]
     
     results = []

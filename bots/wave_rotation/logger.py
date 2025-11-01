@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Iterable
 
 COLUMNS: Iterable[str] = (
@@ -197,4 +197,5 @@ def build_telegram_message(payload: Dict[str, float | str]) -> str:
 
 
 def timestamp_now() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    """UTC timestamp helper using timezone-aware datetime."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")

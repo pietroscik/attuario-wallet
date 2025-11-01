@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import requests
 from eth_account import Account
@@ -173,11 +173,11 @@ def get_current_rpc_url():
 def _next_nonce(w3: Web3, address: str) -> int:
     global _local_nonce
     network_nonce = _rpc_try(lambda: w3.eth.get_transaction_count(address, "pending"))
-    if _local_nonce is None or network_nonce > _local_nonce:
-        _local_nonce = network_nonce
+    if _local_nonce is None:
+        candidate = network_nonce
     else:
-        _local_nonce += 1
-    return _local_nonce
+        candidate = max(network_nonce, _local_nonce + 1)
+    return candidate
 
 # === ABI source setup (artifact | etherscan_v2 | embedded) =================
 
@@ -395,35 +395,57 @@ def get_available_capital_eth(reserve_eth: float = 0.004) -> Optional[float]:
 
 
 def _send_contract_tx(w3: Web3, account, tx_fn: ContractFunction, label: str) -> Optional[str]:
-    try:
-        nonce = _next_nonce(w3, account.address)
-        gas_estimate = _rpc_try(lambda: tx_fn.estimate_gas({"from": account.address}))
-    except Exception as err:
-        print(f"[onchain] {label} stima gas fallita: {err}")
-        return None
+    global _local_nonce
 
-    tx = tx_fn.build_transaction(
-        {
-            "chainId": w3.eth.chain_id,
-            "from": account.address,
-            "nonce": nonce,
-            "gas": int(gas_estimate * Decimal("1.2")),
-            "gasPrice": _rpc_try(lambda: w3.eth.gas_price),
-            "value": 0,
-        }
-    )
+    def _fee_fields() -> Dict[str, int]:
+        try:
+            latest = _rpc_try(lambda: w3.eth.get_block("latest"))
+            base_fee = latest.get("baseFeePerGas")
+            if base_fee is not None:
+                priority = _rpc_try(lambda: w3.eth.max_priority_fee)
+                return {
+                    "maxFeePerGas": int(base_fee * 2 + priority),
+                    "maxPriorityFeePerGas": int(priority),
+                }
+        except Exception:
+            pass
+        return {"gasPrice": _rpc_try(lambda: w3.eth.gas_price)}
 
-    try:
-        signed = account.sign_transaction(tx)
-        raw_tx = getattr(signed, "rawTransaction", None) or getattr(signed, "raw_transaction", None)
-        if raw_tx is None:
-            raise AttributeError("SignedTransaction missing raw bytes")
-        tx_hash = _rpc_try(lambda: w3.eth.send_raw_transaction(raw_tx))
-        print(f"[onchain] {label} inviato: {tx_hash.hex()}")
-        return tx_hash.hex()
-    except Exception as err:
-        print(f"[onchain] Invio {label} fallito: {err}")
-        return None
+    for attempt in range(3):
+        try:
+            nonce = _next_nonce(w3, account.address)
+            gas_estimate = _rpc_try(lambda: tx_fn.estimate_gas({"from": account.address}))
+            tx_params = {
+                "chainId": w3.eth.chain_id,
+                "from": account.address,
+                "nonce": nonce,
+                "gas": int(Decimal(gas_estimate) * Decimal("1.2")),
+                "value": 0,
+                **_fee_fields(),
+            }
+            tx = tx_fn.build_transaction(tx_params)
+            signed = account.sign_transaction(tx)
+            raw_tx = getattr(signed, "rawTransaction", None) or getattr(signed, "raw_transaction", None)
+            if raw_tx is None:
+                raise AttributeError("SignedTransaction missing raw bytes")
+
+            tx_hash = _rpc_try(lambda: w3.eth.send_raw_transaction(raw_tx))
+            print(f"[onchain] {label} inviato: {tx_hash.hex()}")
+            _local_nonce = nonce
+            return tx_hash.hex()
+        except Exception as err:
+            msg = str(err)
+            if any(
+                marker in msg
+                for marker in ("nonce too low", "already known", "replacement transaction underpriced")
+            ):
+                _local_nonce = None
+                if attempt < 2:
+                    print(f"[onchain] {label} nonce issue, retry {attempt + 1}/3…")
+                    time.sleep(0.3)
+                    continue
+            print(f"[onchain] Invio {label} fallito: {err}")
+            return None
 
 
 # === Vault methods =========================================================

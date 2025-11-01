@@ -44,6 +44,18 @@ jobs:
 
           # Catena Base
           echo "CHAIN_ID=8453" >> "$GITHUB_ENV"
+          echo "ALLOWED_CHAIN_IDS=8453" >> "$GITHUB_ENV"
+          echo "REQUIRE_BASE=true" >> "$GITHUB_ENV"
+          echo "SEARCH_SCOPE=CONFIG_ONLY" >> "$GITHUB_ENV"
+          echo "MIN_TVL_USD=0" >> "$GITHUB_ENV"
+          echo "MAX_APY_STALENESS_MIN=1440" >> "$GITHUB_ENV"
+          echo "MIN_DUST_USD=0.25" >> "$GITHUB_ENV"
+          echo "MIN_INVESTMENT_PER_POOL_USD=100" >> "$GITHUB_ENV"
+          echo "TREND_WINDOW_D=14" >> "$GITHUB_ENV"
+          echo "TREND_Z_MIN=0.5" >> "$GITHUB_ENV"
+          echo "EDGE_MIN_NET_USD=0.5" >> "$GITHUB_ENV"
+          echo "HORIZON_DAYS=1.0" >> "$GITHUB_ENV"
+          echo "EDGE_INCLUDE_WITHDRAW=true" >> "$GITHUB_ENV"
 
           # Qualche default utile già verificato
           echo "DEFILLAMA_API=https://yields.llama.fi" >> "$GITHUB_ENV"

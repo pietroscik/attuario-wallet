@@ -30,12 +30,10 @@ def _missing_adapter_cls(dep_name: str, adapter_name: str, exc: Exception) -> Ty
 
 def _load_adapter(module_name: str, class_name: str, dep_hint: str = "web3") -> Type[Adapter]:
     try:
-     adapters_cfg = config.get("adapters", {}) or {}
-     # Risolvi correttamente la chiave anche se manca il prefisso "pool:"
-     key = _resolve_pool_key(pool_id, adapters_cfg)
-     if key is None:
-        return None, f"no_adapter:{pool_id}"
-    entry = adapters_cfg[key]
+        module = importlib.import_module(f".{module_name}", __name__)
+        cls = getattr(module, class_name)
+        if not issubclass(cls, Adapter):  # pragma: no cover - defensive check
+            raise TypeError(f"{class_name} must extend Adapter")
         return cls
     except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency path
         missing = exc.name or dep_hint
@@ -79,23 +77,26 @@ def _resolve_env(value: Any) -> Any:
     if isinstance(value, list):
         return [_resolve_env(v) for v in value]
     return value
+
+
 def _resolve_pool_key(pool_id: str, adapters: Dict[str, object]) -> str | None:
-    # match esatto
+    """Allow both `pool:<name>` and bare `<name>` adapter identifiers."""
     if pool_id in adapters:
         return pool_id
-    # fallback: aggiungi "pool:" se manca
     if not pool_id.startswith("pool:"):
         prefixed = f"pool:{pool_id}"
         if prefixed in adapters:
             return prefixed
     return None
 
+
 def get_adapter(pool_id: str, config: Dict[str, object], w3, account) -> Tuple[object, str | None]:
     adapters_cfg = config.get("adapters", {}) or {}
-    entry = adapters_cfg.get(pool_id)
-    if entry is None:
+    key = _resolve_pool_key(pool_id, adapters_cfg)
+    if key is None:
         return None, f"no_adapter:{pool_id}"
 
+    entry = adapters_cfg[key]
     resolved_entry = _resolve_env(entry)
 
     adapter_type = str(resolved_entry.get("type", "")).lower()

@@ -1,0 +1,89 @@
+name: wave-rotation-loop
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "*/30 * * * *"   # ogni 30 minuti
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Vincoli per evitare no_adapter/scan globali
+      SEARCH_SCOPE: CONFIG_ONLY
+      ALLOWED_CHAIN_IDS: 8453
+      REQUIRE_ADAPTER_BEFORE_RANK: 1
+      WAVE_LOOP_INTERVAL_SECONDS: 300
+      PORTFOLIO_DRY_RUN: "true"
+      ONCHAIN_ENABLED: "false"
+      VAULT_ABI_SOURCE: etherscan_v2
+
+      # Variabili non sensibili dal repository (vars)
+      AAVE_POOL_ADDRESS_8453: ${{ vars.AAVE_POOL_ADDRESS_8453 }}
+      AAVE_WETH_GATEWAY_8453: ${{ vars.AAVE_WETH_GATEWAY_8453 }}
+      AERODROME_ROUTER_8453:  ${{ vars.AERODROME_ROUTER_8453 }}
+      USDC_BASE:              ${{ vars.USDC_BASE }}
+      USDT_BASE:              ${{ vars.USDT_BASE }}
+      EURC_BASE:              ${{ vars.EURC_BASE }}
+      CBBTC_BASE:             ${{ vars.CBBTC_BASE }}
+      YEARN_USDC_VAULT_BASE:  ${{ vars.YEARN_USDC_VAULT_BASE }}
+      YEARN_WETH_VAULT_BASE:  ${{ vars.YEARN_WETH_VAULT_BASE }}
+      COMET_USDC_MARKET_BASE: ${{ vars.COMET_USDC_MARKET_BASE }}
+      COMET_USDBC_MARKET_BASE:${{ vars.COMET_USDBC_MARKET_BASE }}
+      MOONWELL_USDC_CTOKEN:   ${{ vars.MOONWELL_USDC_CTOKEN }}
+      MOONWELL_WETH_CTOKEN:   ${{ vars.MOONWELL_WETH_CTOKEN }}
+      MOONWELL_CBETH_CTOKEN:  ${{ vars.MOONWELL_CBETH_CTOKEN }}
+      MORPHO_USDC_VAULT_BASE: ${{ vars.MORPHO_USDC_VAULT_BASE }}
+      MORPHO_WETH_VAULT_BASE: ${{ vars.MORPHO_WETH_VAULT_BASE }}
+      UNISWAP_V2_ROUTER_BASE: ${{ vars.UNISWAP_V2_ROUTER_BASE }}
+      UNISWAP_V3_NFT_MANAGER_BASE: ${{ vars.UNISWAP_V3_NFT_MANAGER_BASE }}
+      WETH_YIELD_VAULT_BASE:  ${{ vars.WETH_YIELD_VAULT_BASE }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r bots/wave_rotation/requirements.txt
+
+      # Crea .env TEMP con variabili e segreti necessari
+      - name: Create temp .env
+        run: |
+          cat > .env <<'ENV'
+          # --- VARS (repo variables) ---
+          AAVE_POOL_ADDRESS_8453=${{ env.AAVE_POOL_ADDRESS_8453 }}
+          AAVE_WETH_GATEWAY_8453=${{ env.AAVE_WETH_GATEWAY_8453 }}
+          AERODROME_ROUTER_8453=${{ env.AERODROME_ROUTER_8453 }}
+          USDC_BASE=${{ env.USDC_BASE }}
+          USDT_BASE=${{ env.USDT_BASE }}
+          EURC_BASE=${{ env.EURC_BASE }}
+          CBBTC_BASE=${{ env.CBBTC_BASE }}
+          YEARN_USDC_VAULT_BASE=${{ env.YEARN_USDC_VAULT_BASE }}
+          YEARN_WETH_VAULT_BASE=${{ env.YEARN_WETH_VAULT_BASE }}
+          COMET_USDC_MARKET_BASE=${{ env.COMET_USDC_MARKET_BASE }}
+          COMET_USDBC_MARKET_BASE=${{ env.COMET_USDBC_MARKET_BASE }}
+          MOONWELL_USDC_CTOKEN=${{ env.MOONWELL_USDC_CTOKEN }}
+          MOONWELL_WETH_CTOKEN=${{ env.MOONWELL_WETH_CTOKEN }}
+          MOONWELL_CBETH_CTOKEN=${{ env.MOONWELL_CBETH_CTOKEN }}
+          MORPHO_USDC_VAULT_BASE=${{ env.MORPHO_USDC_VAULT_BASE }}
+          MORPHO_WETH_VAULT_BASE=${{ env.MORPHO_WETH_VAULT_BASE }}
+          UNISWAP_V2_ROUTER_BASE=${{ env.UNISWAP_V2_ROUTER_BASE }}
+          UNISWAP_V3_NFT_MANAGER_BASE=${{ env.UNISWAP_V3_NFT_MANAGER_BASE }}
+          WETH_YIELD_VAULT_BASE=${{ env.WETH_YIELD_VAULT_BASE }}
+          SEARCH_SCOPE=${{ env.SEARCH_SCOPE }}
+          ALLOWED_CHAIN_IDS=${{ env.ALLOWED_CHAIN_IDS }}
+          REQUIRE_ADAPTER_BEFORE_RANK=${{ env.REQUIRE_ADAPTER_BEFORE_RANK }}
+          WAVE_LOOP_INTERVAL_SECONDS=${{ env.WAVE_LOOP_INTERVAL_SECONDS }}
+          PORTFOLIO_DRY_RUN=${{ env.PORTFOLIO_DRY_RUN }}
+          ONCHAIN_ENABLED=${{ env.ONCHAIN_ENABLED }}
+          VAULT_ABI_SOURCE=${{ env.VAULT_ABI_SOURCE }}
+          # --- SECRETS ---
+          RPC_URL=${{ secrets.RPC_URL }}
+          PRIVATE_KEY=${{ secrets.PRIVATE_KEY }}
+          ETHERSCAN_API_KEY=${{ secrets.ETHERSCAN_API_KEY }}
+          WETH_TOKEN_ADDRESS=${{ secrets.WETH_TOKEN_ADDRESS }}
+          ENV
+
+      - name: Run loop (15 minutes window)
+        run: bash scripts/run_wave_rotation_loop.sh

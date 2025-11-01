@@ -13,26 +13,21 @@ This module extends the existing Wave Rotation strategy by supporting simultaneo
 ## Features
 
 ### Core Capabilities
-- ✅ **Multi-Asset Support**: Handles ETH, WETH, USDC, EURC, ANON, and 50+ other tokens
-- ✅ **Automatic Pool Matching**: Matches wallet assets to compatible pools based on adapter configuration
-- ✅ **Greedy Optimization**: Allocates each asset to its highest-scored pool
-- ✅ **Buffer Reserve System**: Keeps configurable % of funds unallocated for gas and safety
-- ✅ **Dry-Run Mode**: Test allocations without executing transactions
-- ✅ **State Persistence**: Logs all allocations to JSON for tracking
-- ✅ **Treasury Integration**: Compatible with existing 50% profit split to treasury
-- ✅ **Adapter Compatibility**: Works with all existing adapters (Aave, Morpho, Beefy, etc.)
+- ✅ **Wallet Scanner 2.0**: Normalises ETH/WETH/stablecoin balances in USD and filters “dust” via `MIN_DUST_USD`
+- ✅ **Trend-Aware Scoring**: Combines APY, price momentum, volatility and drawdown into a composite score
+- ✅ **Net-Edge Validation**: Executes only if expected return (after gas + fees + slippage) exceeds `EDGE_MIN_NET_USD`
+- ✅ **Diversified Planner**: Allocates per asset with buffer reserve and max destination cap (`MAX_POOLS_PER_ASSET`)
+- ✅ **Dry-Run Friendly**: All logic can run without on-chain mutations
+- ✅ **State Persistence**: Allocation snapshots saved to `multi_strategy_state.json`
+- ✅ **Adapter Compatibility**: Works with existing adapters (Aave, Morpho, Beefy, Comet, etc.)
 
-### Optimization Algorithm
+### Optimization Flow
 
-The current implementation uses a **greedy algorithm**:
-1. Scans wallet for all available assets
-2. Matches each asset to compatible pools via adapters
-3. Calculates normalized scores for each pool (APY / risk / cost)
-4. Allocates each asset to its highest-scored pool
-5. Applies buffer reserve (default 5%)
-6. Filters by minimum investment threshold
-
-**Future Enhancement**: Linear programming optimization for multi-pool splits per asset.
+1. **Scan** – `wallet_scanner.scan_wallet` gathers balances & USD conversion
+2. **Score** – trend metrics (slope, Z-score, volatility, drawdown) drive composite score via `scoring.compute_trend_score`
+3. **Plan** – build allocation plan respecting buffers, minimum size and diversification constraints
+4. **Edge Check** – estimated net edge must exceed `EDGE_MIN_NET_USD` before inclusion
+5. **Execute** – adapters invoked (or simulated) sequentially with nonce protection handled upstream
 
 ## Configuration
 
@@ -42,18 +37,36 @@ Add these to your `.env` file:
 
 ```bash
 # Multi-Strategy Optimizer
-MULTI_STRATEGY_ENABLED=true          # Enable/disable multi-strategy mode
-STRATEGY_BUFFER_PERCENT=5.0          # Percentage of funds to keep as reserve (0-100)
-MIN_INVESTMENT_PER_POOL=0.001        # Minimum amount to allocate per pool
-MAX_POOLS_PER_ASSET=3                # Maximum pools to consider per asset
+MULTI_STRATEGY_ENABLED=true            # Enable/disable optimizer
+STRATEGY_BUFFER_PERCENT=10.0           # Buffer kept in wallet (percentage)
+MIN_INVESTMENT_PER_POOL_USD=100        # Minimum USD chunk per allocation
+MAX_POOLS_PER_ASSET=2                  # Diversification cap per asset
+MIN_DUST_USD=50                        # Ignore holdings below this value
 
-# Execution Mode
-PORTFOLIO_DRY_RUN=true               # Test without executing (set false for live)
-PORTFOLIO_AUTOMATION_ENABLED=true     # Enable portfolio automation
+# Trend / scoring knobs
+TREND_WINDOW_D=14
+TREND_LOOKBACK_D=90
+TREND_Z_MIN=0.5
+TREND_Z_CAP=3.0
+TREND_VOL_CAP=0.05
+TREND_DD_CAP=0.25
+W_APY=0.4
+W_TR=0.5
+W_VOL=0.05
+W_DD=0.05
 
-# Treasury Integration
-TREASURY_AUTOMATION_ENABLED=true      # Enable automatic treasury transfers
-TREASURY_ADDRESS=0x...               # Treasury wallet address
+# Net edge parameters
+HORIZON_DAYS=1.0
+EDGE_MIN_NET_USD=0.5
+GAS_WITHDRAW_COST_USD=0.35
+GAS_DEPOSIT_COST_USD=0.35
+EDGE_INCLUDE_WITHDRAW=true
+SWAP_FEE_BPS=5
+EDGE_SLIPPAGE_BPS=50
+
+# Execution mode
+PORTFOLIO_DRY_RUN=true
+PORTFOLIO_AUTOMATION_ENABLED=true
 ```
 
 ### Configuration Parameters
@@ -62,8 +75,11 @@ TREASURY_ADDRESS=0x...               # Treasury wallet address
 |-----------|---------|-------------|
 | `MULTI_STRATEGY_ENABLED` | `false` | Enable multi-strategy mode |
 | `STRATEGY_BUFFER_PERCENT` | `5.0` | Reserve buffer (%) |
-| `MIN_INVESTMENT_PER_POOL` | `0.001` | Min allocation threshold |
-| `MAX_POOLS_PER_ASSET` | `3` | Max pools per asset |
+| `MIN_INVESTMENT_PER_POOL_USD` | `100` | Minimum allocation size in USD |
+| `MAX_POOLS_PER_ASSET` | `1` | Max pools per asset |
+| `MIN_DUST_USD` | `0.25` | Ignore balances below this value |
+| `TREND_WINDOW_D` | `14` | Trend lookback window |
+| `EDGE_MIN_NET_USD` | `0.5` | Minimum net expected profit |
 | `PORTFOLIO_DRY_RUN` | `true` | Dry-run mode for testing |
 
 ## Usage
