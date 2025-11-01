@@ -10,7 +10,6 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 try:
@@ -187,12 +186,12 @@ def validate_adapter_coverage(config_path: str) -> int:
                     missing_vars.append(f"{pool_id}: {env_var} (field: {field})")
                     pool_valid = False
                 elif not address_pattern.match(resolved):
-                    invalid_addresses.append(f"{pool_id}: {env_var}={resolved} (invalid EIP-55)")
+                    invalid_addresses.append(f"{pool_id}: {env_var}={resolved} (invalid address format)")
                     pool_valid = False
             elif isinstance(value, str) and value.startswith("0x"):
                 # Direct address in config
                 if not address_pattern.match(value):
-                    invalid_addresses.append(f"{pool_id}: {field}={value} (invalid EIP-55)")
+                    invalid_addresses.append(f"{pool_id}: {field}={value} (invalid address format)")
                     pool_valid = False
             else:
                 # Required field is missing or empty
@@ -217,7 +216,7 @@ def validate_adapter_coverage(config_path: str) -> int:
         print()
 
     if invalid_addresses:
-        print("❌ INVALID ADDRESSES (not EIP-55 compliant):")
+        print("❌ INVALID ADDRESSES (incorrect format):")
         for msg in invalid_addresses:
             print(f"  • {msg}")
         print()

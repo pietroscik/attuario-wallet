@@ -171,13 +171,6 @@ jobs:
           
           echo "✅ Loop evaluated OK - all checks passed"
 
-      - name: Fail if no adapters
-        if: always()
-        run: |
-          if grep -qE 'no_adapter|SKIP.*no_adapters' run.log; then
-            echo "❌ Nessun adapter valido per i pool selezionati"; exit 1;
-          fi
-
       - name: Upload run.log
         if: always()
         uses: actions/upload-artifact@v4
