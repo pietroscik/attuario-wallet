@@ -193,7 +193,7 @@ def validate_adapter_coverage(config_path: str) -> int:
                 if not address_pattern.match(value):
                     invalid_addresses.append(f"{pool_id}: {field}={value} (invalid EIP-55)")
                     pool_valid = False
-            elif field in all_required:
+            else:
                 # Required field is missing or empty
                 missing_vars.append(f"{pool_id}: {field} (missing or empty)")
                 pool_valid = False

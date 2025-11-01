@@ -41,7 +41,7 @@ run_once() {
   echo "[$timestamp] ▶︎ Esecuzione strategy.py" | tee -a "$LOG_FILE"
   
   # Run strategy with output to both daily.log and run.log
-  python3 -m bots.wave_rotation.strategy --dry-run 2>&1 | tee -a "$LOG_FILE" | tee -a "$RUN_LOG" || \
+  python3 -m bots.wave_rotation.strategy 2>&1 | tee -a "$LOG_FILE" | tee -a "$RUN_LOG" || \
     echo "[$timestamp] ⚠️ Errore strategy.py (vedi log)" | tee -a "$LOG_FILE" | tee -a "$RUN_LOG"
   
   echo "[$timestamp] ━━ run completa ━━" | tee -a "$LOG_FILE"
