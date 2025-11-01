@@ -116,6 +116,7 @@ jobs:
           export PYTHONUNBUFFERED=1
           
           echo "🧪 Running strategy in dry-run mode..."
+          # Timeout after 3 minutes to prevent hanging on network issues or infinite loops
           timeout 180 python -m bots.wave_rotation.strategy --print-status 2>&1 | tee run.log || {
             echo "⚠️ Strategy execution had issues (exit code: $?)"
             cat run.log

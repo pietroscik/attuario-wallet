@@ -146,7 +146,8 @@ def validate_adapter_coverage(config_path: str) -> int:
         print("❌ No adapters configured")
         return 1
 
-    # EIP-55 address pattern (checksummed Ethereum address)
+    # Basic Ethereum address pattern (0x followed by 40 hex chars)
+    # Note: This validates format only, not EIP-55 checksum compliance
     address_pattern = re.compile(r'^0x[a-fA-F0-9]{40}$')
     
     missing_vars = []
