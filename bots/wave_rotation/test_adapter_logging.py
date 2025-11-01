@@ -123,18 +123,20 @@ def test_pool_key_resolution():
     account = MagicMock()
     account.address = "0xTest"
     
-    # Suppress output for this test
+    # Capture stdout to suppress error messages from this test
+    captured_output = io.StringIO()
     old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
+    sys.stdout = captured_output
     
-    # Test with full key (should find it)
-    adapter1, error1 = get_adapter("pool:base:aave-v3:USDC", config, w3, account)
-    
-    # Test with bare key (should also find it with pool: prefix)
-    adapter2, error2 = get_adapter("base:aave-v3:USDC", config, w3, account)
-    
-    # Restore stdout
-    sys.stdout = old_stdout
+    try:
+        # Test with full key (should find it)
+        adapter1, error1 = get_adapter("pool:base:aave-v3:USDC", config, w3, account)
+        
+        # Test with bare key (should also find it with pool: prefix)
+        adapter2, error2 = get_adapter("base:aave-v3:USDC", config, w3, account)
+    finally:
+        # Restore stdout
+        sys.stdout = old_stdout
     
     # Note: Both will return errors because we can't actually instantiate adapters
     # without proper w3 connection, but the error should NOT be "no_adapter"
