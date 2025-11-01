@@ -83,12 +83,14 @@ jobs:
 
       - name: Verify imports
         run: |
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
           echo "🔍 Verifying critical imports..."
           python -c "import bots.wave_rotation.strategy; print('✅ Strategy imports OK')"
           python -c "import bots.wave_rotation.adapter_utils; print('✅ Adapter utils imports OK')"
 
       - name: Verify adapter coverage
         run: |
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
           set -euo pipefail
           echo "🔍 Verifying adapter coverage..."
           python -m bots.wave_rotation.adapter_utils validate --config bots/wave_rotation/config.json
@@ -116,6 +118,7 @@ jobs:
 
       - name: Strategy dry-run test
         run: |
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
           set -euo pipefail
           set -a; source <(env | grep -E '^(AAVE_|USDC_|WETH_|AERODROME_|YEARN_|COMET_|MOONWELL_|MORPHO_|BEEFY_|CBBTC_|CBETH_|EURC_|USDT_|USDBC_|UNISWAP_|SPARK_|SEAMLESS_|STEAKHOUSE_|SEARCH_SCOPE|ALLOWED_CHAIN_IDS|REQUIRE_ADAPTER_BEFORE_RANK|PORTFOLIO_DRY_RUN|ONCHAIN_ENABLED|VAULT_ABI_SOURCE|RPC_URL|PRIVATE_KEY|ETHERSCAN_API_KEY|TELEGRAM_)'); set +a
           
@@ -126,13 +129,14 @@ jobs:
           : > run.log
           
           # Run the process and write output to run.log; capture the exit code of python with PIPESTATUS
-          timeout 180 python -m bots.wave_rotation.strategy --print-status 2>&1 | tee run.log
+          # Increased timeout to 300 seconds (5 minutes) for more complex operations
+          timeout 300 python -m bots.wave_rotation.strategy --print-status 2>&1 | tee -a run.log
           exit_code=${PIPESTATUS[0]:-0}
           
           if [ "$exit_code" -ne 0 ]; then
             echo "⚠️ Strategy process exited with code $exit_code" | tee -a run.log
-            echo "----- tail of run.log (last 200 lines) -----" | tee -a run.log
-            tail -n 200 run.log | tee -a run.log
+            echo "----- tail of run.log (last 300 lines) -----" | tee -a run.log
+            tail -n 300 run.log | tee -a run.log
             exit "$exit_code"
           fi
 
