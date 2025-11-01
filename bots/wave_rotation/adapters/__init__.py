@@ -94,6 +94,7 @@ def get_adapter(pool_id: str, config: Dict[str, object], w3, account) -> Tuple[o
     adapters_cfg = config.get("adapters", {}) or {}
     key = _resolve_pool_key(pool_id, adapters_cfg)
     if key is None:
+        print(f"[adapter] ❌ no_adapter for pool_id='{pool_id}' (not found in config.json adapters)")
         return None, f"no_adapter:{pool_id}"
 
     entry = adapters_cfg[key]
@@ -102,10 +103,15 @@ def get_adapter(pool_id: str, config: Dict[str, object], w3, account) -> Tuple[o
     adapter_type = str(resolved_entry.get("type", "")).lower()
     cls = ADAPTER_TYPES.get(adapter_type)
     if cls is None:
+        print(f"[adapter] ❌ unknown_type for pool_id='{pool_id}': type='{adapter_type or 'unset'}' (not in ADAPTER_TYPES registry)")
+        available_types = ", ".join(sorted(ADAPTER_TYPES.keys()))
+        print(f"[adapter]    Available types: {available_types}")
         return None, f"unknown_type:{adapter_type or 'unset'}"
 
     try:
         adapter = cls(w3, resolved_entry, account, account.address)
     except Exception as exc:  # pragma: no cover - defensive logging
-        return None, f"adapter_init_error:{type(exc).__name__}"
+        exc_name = type(exc).__name__
+        print(f"[adapter] ❌ adapter_init_error for pool_id='{pool_id}' type='{adapter_type}': {exc_name}: {exc}")
+        return None, f"adapter_init_error:{exc_name}"
     return adapter, None
